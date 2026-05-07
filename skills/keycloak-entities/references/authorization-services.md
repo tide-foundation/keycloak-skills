@@ -26,7 +26,11 @@ Resources have URIs and types. Scopes are actions. Policies say things like "ali
 
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
-| `resource_server` | `ResourceServerEntity` | id | client_id → client.id (unique) | One per UMA-enabled client |
+| `resource_server` | `ResourceServerEntity` | id (= client.id) | (no FK; the PK value IS the client's UUID) | One per UMA-enabled client |
+
+**`resource_server.id == client.id`**: in authz-3.4.0.CR1 the schema was migrated so `RESOURCE_SERVER.ID` holds what used to be in `CLIENT_ID` — the original `ID` column was dropped and `CLIENT_ID` was renamed to `ID`. So `ResourceServerStore.findByClient(client)` is just `findById(client.getId())`. There is no separate `client_id` column anymore.
+
+**Other columns**: `ALLOW_RS_REMOTE_MGMT BOOLEAN`, `POLICY_ENFORCE_MODE TINYINT` (was VARCHAR until 21.1.0), `DECISION_STRATEGY TINYINT` (added in authz-7.0.0, default 1 = `UNANIMOUS`).
 
 ### Resources
 
@@ -97,13 +101,17 @@ resource: /api/users/123
 
 ## Policy composition (aggregate policies)
 
-Aggregate policies reference children through `associated_policy`. The `decision_strategy` column on the parent controls how children combine:
+Aggregate policies reference children through `associated_policy`. The `decision_strategy` column on the parent controls how children combine.
 
-| Strategy | Behavior |
-|---|---|
-| `UNANIMOUS` | All child policies must permit |
-| `AFFIRMATIVE` | At least one child must permit |
-| `CONSENSUS` | Majority must permit |
+**Storage type at 26.5.5**: `resource_server_policy.decision_strategy` and `resource_server_policy.logic` are both `TINYINT` (since 21.1.0; previously `VARCHAR`). The numeric values come from the `DecisionStrategy` and `Logic` enums' `getStableIndex()`:
+
+| Numeric | `DecisionStrategy` | Behavior |
+|---|---|---|
+| `0` | `AFFIRMATIVE` | At least one child must permit |
+| `1` | `UNANIMOUS` | All child policies must permit |
+| `2` | `CONSENSUS` | Majority must permit |
+
+The `resource_server.decision_strategy` column (added authz-7.0.0) is the realm-default fallback used when a permission has no explicit decision strategy.
 
 ---
 
@@ -151,7 +159,7 @@ List<Policy> policies = stores.getPolicyStore().findByResource(rs, resource);
 
 ## Gotchas
 
-- **One `resource_server` per client max** — unique constraint on `client_id`. Enabling Authorization Services on a client creates the row.
+- **One `resource_server` per client max** — guaranteed by the PK (since 3.4.0, `resource_server.id` is the client's UUID, so creating a second resource_server for the same client would PK-conflict). Enabling Authorization Services on a client creates the row with id = client.id.
 - **Scopes are local to a resource server** — `resource_server_scope.resource_server_id` makes scopes scoped to one client. Two different resource servers can have a scope named "read" without collision.
 - **Many-to-many tables don't have entity classes** — `resource_scope`, `resource_policy`, `scope_policy`, `associated_policy` are pure join tables managed via `@ElementCollection` or programmatic JPA.
 - **Policy evaluation is expensive** — walks aggregate policies, multiple SQL lookups per request. Cache where possible.
