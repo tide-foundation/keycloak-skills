@@ -410,7 +410,7 @@ Read both columns when querying event details on KC 23+/26.1+ — either may hol
 |---|---|---|---|---|---|
 | `org` | `OrganizationEntity` | id | realm_id → realm.id, group_id → keycloak_group.id | Organization (multi-tenancy within a realm) | 25.0 |
 | `org_domain` | `OrganizationDomainEntity` | (id, name) | org_id → org.id | Email domains associated with the org | 25.0 |
-| `org_invitation` | `OrganizationInvitationEntity` | id | org_id → org.id | Pending invitations to join | 26.5.0 |
+| `org_invitation` | `OrganizationInvitationEntity` | id | organization_id → org.id | Pending invitations to join. **Note**: this FK column is `organization_id` (asymmetric with `org_domain.org_id`); JPA field is `organizationId`. | 26.5.0 |
 
 **Mirrors a backing group**: `org.group_id` references a `keycloak_group` row. Org membership = group membership.
 
