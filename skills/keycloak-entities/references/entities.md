@@ -18,7 +18,7 @@ Version pinning: see `../SKILL.md`.
 | `realm_enabled_event_types` | (no entity) | (realm_id, value) | realm_id → realm.id | Event types to record |
 | `realm_supported_locales` | (no entity) | (realm_id, value) | realm_id → realm.id | Supported UI locales |
 | `realm_default_groups` | (no entity) | (realm_id, group_id) | realm_id → realm.id, group_id → keycloak_group.id | Groups joined automatically by new users |
-| `realm_localizations` | `RealmLocalizationTextsEntity` | (realm_id, locale, text_key) | realm_id → realm.id | Translated strings for UI/emails |
+| `realm_localizations` | `RealmLocalizationTextsEntity` | (realm_id, locale) | realm_id → realm.id | One row per (realm, locale); the `texts` column is a `CLOB` holding a JSON-serialized `Map<String,String>` of all keys for that locale. There is no per-key column. |
 
 **Key behavior**: Realm config lives in 2 places — columns on `realm` (`name`, `enabled`, `password_policy`, `ssl_required`, etc.) AND `realm_attribute` rows (theme overrides, custom feature toggles). The model API `realm.getAttribute(name)` reads from the attribute table.
 
@@ -38,8 +38,8 @@ Version pinning: see `../SKILL.md`.
 | `user_role_mapping` | `UserRoleMappingEntity` | (role_id, user_id) | user_id → user_entity.id, role_id → keycloak_role.id | User → role assignments |
 | `user_group_membership` | `UserGroupMembershipEntity` | (group_id, user_id) | user_id → user_entity.id, group_id → keycloak_group.id | User → group memberships. `membership_type` column (KC 26+) is not part of the PK; see gotcha #20 in SKILL.md. |
 | `user_consent` | `UserConsentEntity` | id | user_id → user_entity.id, client_id → client.id | OAuth2 consent grants |
-| `user_consent_client_scope` | (no entity) | (user_consent_id, scope_id) | both | Scopes granted in a consent |
-| `username_login_failure` | (no entity) | (realm_id, username) | realm_id → realm.id | Brute-force protection state |
+| `user_consent_client_scope` | `UserConsentClientScopeEntity` | (user_consent_id, scope_id) | both | Scopes granted in a consent |
+| ~~`username_login_failure`~~ | — | — | — | **Removed in KC 26.1.0**. Brute-force state is now Infinispan-only; use `BruteForceProtector` SPI or admin REST `/attack-detection/brute-force/users/{id}`. |
 
 **`user_entity` key columns**: `id`, `realm_id`, `username`, `email`, `email_verified`, `email_constraint` (dynamic unique-email handle), `enabled`, `created_timestamp`, `federation_link` (FK to component when federated), `service_account_client_link` (FK to client when this user is a service account), `not_before` (token revocation timestamp).
 
@@ -49,7 +49,7 @@ Version pinning: see `../SKILL.md`.
 
 **Service accounts**: when `client.service_accounts_enabled = true`, Keycloak creates `user_entity` row with `username = "service-account-<clientId>"` and `service_account_client_link = <client_id>`. Real users with normal role mappings.
 
-**`username_login_failure` is keyed by `(realm_id, username)`** not `user_id` — works even before user exists (defense against username enumeration).
+**Brute-force tracking moved to Infinispan in KC 26.1**: the old `username_login_failure` table (PK `(realm_id, username)`) was dropped in `jpa-changelog-26.1.0.xml`. The username-keyed semantic is preserved in memory so tracking still works before a matching user exists, but raw SQL/JPQL can no longer read or mutate the state — use the `BruteForceProtector` SPI.
 
 ---
 
@@ -165,9 +165,9 @@ A naive query like `SELECT * FROM keycloak_group WHERE realm_id = ?` returns **b
 |---|---|---|---|---|
 | `client_scope` | `ClientScopeEntity` | id | realm_id → realm.id | Reusable scope (profile, email, custom) |
 | `client_scope_attributes` | `ClientScopeAttributeEntity` | (scope_id, name) | scope_id → client_scope.id | Scope attributes |
-| `client_scope_client` | (no entity) | (client_id, scope_id) + default_scope flag | both | Scope assigned to client (default or optional) |
+| `client_scope_client` | `ClientScopeClientMappingEntity` | (client_id, scope_id) | both | Scope assigned to client. Discriminator column `default_scope BOOLEAN` distinguishes default vs optional. |
 | `client_scope_role_mapping` | `ClientScopeRoleMappingEntity` | (scope_id, role_id) | both | Scope's role allow-list |
-| `default_client_scope` | (no entity) | (realm_id, scope_id) + default_scope flag | both | Realm-level default/optional scopes (apply to new clients) |
+| `default_client_scope` | `DefaultClientScopeRealmMappingEntity` | (realm_id, scope_id) | both | Realm-level default/optional scopes (apply to new clients). Discriminator `default_scope BOOLEAN` distinguishes default vs optional. |
 
 **Default vs Optional**: `default_scope` boolean controls whether scope is auto-included or only when requested via `scope=` param.
 
@@ -256,7 +256,9 @@ There is **no `parent_flow` column**. Older skill writeups sometimes claim one; 
 
 **Execution requirements**: `REQUIRED`, `ALTERNATIVE`, `OPTIONAL`, `DISABLED`, `CONDITIONAL`.
 
-**Realm has FK columns for default flows** (column names exact, all on the `realm` table): `browser_flow`, `registration_flow`, `direct_grant_flow`, `reset_credentials_flow`, `client_auth_flow`, `docker_auth_flow`, `first_broker_login_flow_id`. Note the abbreviations (`*_AUTH_FLOW` not `*_AUTHENTICATION_FLOW`) and that `first_broker_login_flow_id` is the only one with an `_ID` suffix — it predates the others' naming convention (added in KC 1.7.0). Per-client overrides go in `client_auth_flow_bindings`.
+**Realm has FK columns for default flows** (column names exact, all on the `realm` table): `browser_flow`, `registration_flow`, `direct_grant_flow`, `reset_credentials_flow`, `client_auth_flow`, `docker_auth_flow`. Note the abbreviations (`*_AUTH_FLOW`, not `*_AUTHENTICATION_FLOW`). Per-client overrides go in `client_auth_flow_bindings`.
+
+**First-broker-login and post-broker-login flows are per-IDP, not per-realm**: `identity_provider.first_broker_login_flow_id` and `identity_provider.post_broker_login_flow_id` (NOT columns on `realm`). See section 9.
 
 **Required actions** are per-realm definitions. `user_required_action` (on a user) references action by name. Auto-prompted at login when realm has the action `default_action = true` OR user has a row in `user_required_action`.
 
@@ -294,7 +296,7 @@ component (LDAP, parent_id = realm.id)
 
 **`ComponentEntity` doesn't expose config map**: use `RealmModel.getComponentsStream(...)` and `ComponentModel.getConfig()` — the model layer joins.
 
-**Long-value spillover (KC 23+)**: `component_config.value` is `VARCHAR(255)`. Larger values land in `VALUE_NEW NCLOB` (added 23.0.0). The model API reads from both; raw SQL needs to coalesce.
+**`component_config.value` is `NCLOB` since KC 23.0.0** (was `VARCHAR(255)` before). The 23.0.0 changeset added a transient `VALUE_NEW NCLOB`, copied data into it, dropped the old `VALUE`, then renamed `VALUE_NEW` back to `VALUE`. So at 26.5.5 there is **no `VALUE_NEW` column** — `VALUE` itself is `NCLOB` and holds values of any length.
 
 ---
 
@@ -338,7 +340,7 @@ user.grantRole(role);  // writes to fed_user_role_mapping if user is federated
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
 | `user_consent` | `UserConsentEntity` | id | user_id → user_entity.id, client_id → client.id (or federated client identity, see below) | OAuth2 consent grant per (user, client) |
-| `user_consent_client_scope` | (no entity) | (user_consent_id, scope_id) | both | Scopes granted in this consent |
+| `user_consent_client_scope` | `UserConsentClientScopeEntity` | (user_consent_id, scope_id) | both | Scopes granted in this consent |
 
 **Schema**: `id`, `user_id`, `client_id`, `client_storage_provider`, `external_client_id`, `created_date BIGINT`, `last_updated_date BIGINT`. The `client_storage_provider` and `external_client_id` columns (added 4.0.0) support consents for **federated clients** stored in a `ClientStorageProvider` (e.g. LDAP-backed clients) — local-realm clients have these as null.
 
@@ -423,7 +425,7 @@ Read both columns when querying event details on KC 23+/26.1+ — either may hol
 | `migration_model` | `MigrationModelEntity` | id | (no FK) | Schema version tracker |
 | `databasechangelog` | (Liquibase-managed) | (id, author, filename) | (no FK) | Liquibase: applied changesets |
 | `databasechangeloglock` | (Liquibase-managed) | id | (no FK) | Liquibase: migration lock |
-| `jgroups_ping` | (no entity) | (own_addr, bind_addr) | (no FK) | JGroups cluster discovery (only if JDBC_PING used) |
+| `jgroups_ping` | (no entity) | address | (no FK) | JGroups JDBC_PING cluster discovery (added KC 26.1.0). Columns: `address VARCHAR(200)` (PK), `name VARCHAR(200)`, `cluster_name VARCHAR(200)` (NOT NULL), `ip VARCHAR(200)` (NOT NULL), `coord BOOLEAN`. |
 
 **`migration_model`**: single-row table, records `id` (schema version), `version`, `update_time`. Don't modify manually — Liquibase + Keycloak migration code keeps it consistent.
 

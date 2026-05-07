@@ -232,8 +232,8 @@ Custom JPQL searching by long-value content should compute the hash on the input
 ### 14. `fed_user_*` tables have no FKs
 Federated users live outside Keycloak's `user_entity`. Tables denormalize with `user_id + realm_id + storage_provider_id` columns. No referential integrity to the external store.
 
-### 15. `username_login_failure` ≠ user_entity
-Brute-force tracking keyed by `(realm_id, username)` — works even before the user exists, defeating username enumeration.
+### 15. Brute-force tracking is no longer in the database (KC 26.1+)
+The `username_login_failure` table was **dropped in 26.1.0** (`<dropTable tableName="USERNAME_LOGIN_FAILURE"/>` in `jpa-changelog-26.1.0.xml`). Brute-force/login-failure state is now Infinispan-only — the same migration applied to live sessions in 26.0. The previous table was keyed by `(realm_id, username)` so tracking worked even before a matching user existed (defeating username enumeration); the in-memory replacement preserves that semantic but means raw SQL/JPQL can no longer read or mutate the state. Use `BruteForceProtector` (SPI) or the admin REST `/admin/realms/{realm}/attack-detection/brute-force/users/{user-id}` endpoints.
 
 ### 16. Composite PKs are `@IdClass`, not `@EmbeddedId`
 Each composite-PK entity has a public static inner `Key` class:
@@ -320,7 +320,7 @@ Audit log preservation: `event_entity` and `admin_event_entity` deliberately hav
 | Group's roles | `group_role_mapping` |
 | Group hierarchy | `keycloak_group.parent_group` (top = `' '`, NOT NULL) |
 | Realm-level config | `realm` columns + `realm_attribute` rows |
-| Brute-force state | `username_login_failure` |
+| Brute-force state | Not in DB since KC 26.1 (Infinispan-only). Use `BruteForceProtector` SPI or admin REST `/attack-detection/brute-force/users/{id}`. |
 | Clients in realm | `client` WHERE `realm_id = ?` |
 | Client's protocol mappers | `protocol_mapper` WHERE `client_id = ?` UNION mappers from default scopes |
 | Client's redirect URIs | `redirect_uris` |
@@ -364,10 +364,12 @@ Many entities define them with `@NamedQueries(...)`, but **not all do**. Verify 
 If you remember a name from training data and it isn't in the entity class, it doesn't exist. Don't `em.createNamedQuery(...)` blind.
 
 ### Filtering relationship tables by realm (JOIN through parent)
+`UserRoleMappingEntity` does NOT have a `RoleEntity` reference — its role link is the plain string column `roleId`. And `UserEntity` has no `roleMappings` collection (its `@OneToMany` collections are only `attributes`, `requiredActions`, `credentials`, `federatedIdentities`). Query through the relationship entity directly:
+
 ```java
 // Users with role X in realm Y
-"SELECT u FROM UserEntity u JOIN u.roleMappings rm " +
-"WHERE u.realmId = :rid AND rm.role.id = :roleId"
+"SELECT urm.user FROM UserRoleMappingEntity urm " +
+"WHERE urm.user.realmId = :rid AND urm.roleId = :roleId"
 ```
 
 ### Composite role expansion

@@ -136,7 +136,7 @@ public class MyAdminResourceProvider implements AdminRealmResourceProvider {
 }
 
 @Path("my-extension")
-@Vetoed   // tell Quarkus to skip CDI scanning — Keycloak constructs via factory
+@Vetoed   // optional: tells Quarkus CDI to skip this class
 public class MyAdminResource {
     public MyAdminResource(KeycloakSession session, RealmModel realm, AdminPermissionEvaluator auth) { ... }
     
@@ -147,7 +147,7 @@ public class MyAdminResource {
 
 Register the factory in `META-INF/services/org.keycloak.services.resources.admin.ext.AdminRealmResourceProviderFactory`.
 
-The `@Vetoed` annotation is critical — without it Quarkus tries to make the resource a CDI bean and fails because `RealmModel` and `AdminPermissionEvaluator` aren't CDI-managed.
+**About `@Vetoed`**: Keycloak's own admin sub-resources (e.g. `TestLdapConnectionResource` in the LDAP federation module) do **not** use `@Vetoed` and work fine — the Keycloak Quarkus extension already excludes JAX-RS classes constructed by `*ResourceProvider` from CDI bean discovery. `@Vetoed` is harmless to add and may help in edge-case extension setups that interact differently with CDI scanning, but it is not required by core Keycloak.
 
 ## Custom event listeners
 
