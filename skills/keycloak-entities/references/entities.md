@@ -147,6 +147,7 @@ A naive query like `SELECT * FROM keycloak_group WHERE realm_id = ?` returns **b
 | `client_node_registrations` | (no entity) | (client_id, name) | client_id → client.id | Cluster nodes registered for the client |
 | `client_initial_access` | `ClientInitialAccessEntity` | id | realm_id → realm.id | One-time tokens for dynamic client registration |
 | `client_auth_flow_bindings` | (no entity) | (client_id, binding_name) | client_id → client.id | Per-client overrides of auth flows |
+| `scope_mapping` | (no entity) | (client_id, role_id) | client_id → client.id, role_id → keycloak_role.id | Per-client role allow-list ("Scope Mappings" tab in admin UI). Distinct from `client_scope_role_mapping` (which scopes roles to a client-scope) and `client_scope_client` (which binds client-scopes to a client). |
 
 **Two IDs**: `id` = internal UUID (PK, used in FKs), `client_id` = public OAuth2 identifier (what admins know, e.g., `account-console`). Unique on `(realm_id, client_id)`.
 
@@ -255,7 +256,7 @@ There is **no `parent_flow` column**. Older skill writeups sometimes claim one; 
 
 **Execution requirements**: `REQUIRED`, `ALTERNATIVE`, `OPTIONAL`, `DISABLED`, `CONDITIONAL`.
 
-**Realm has FK columns for default flows**: `browser_flow`, `registration_flow`, `direct_grant_flow`, `reset_credentials_flow`, `client_authentication_flow`, `docker_authentication_flow`, `first_broker_login_flow` (KC 25+). Per-client overrides go in `client_auth_flow_bindings`.
+**Realm has FK columns for default flows** (column names exact, all on the `realm` table): `browser_flow`, `registration_flow`, `direct_grant_flow`, `reset_credentials_flow`, `client_auth_flow`, `docker_auth_flow`, `first_broker_login_flow_id`. Note the abbreviations (`*_AUTH_FLOW` not `*_AUTHENTICATION_FLOW`) and that `first_broker_login_flow_id` is the only one with an `_ID` suffix — it predates the others' naming convention (added in KC 1.7.0). Per-client overrides go in `client_auth_flow_bindings`.
 
 **Required actions** are per-realm definitions. `user_required_action` (on a user) references action by name. Auto-prompted at login when realm has the action `default_action = true` OR user has a row in `user_required_action`.
 
@@ -463,7 +464,7 @@ Authoritative list at Keycloak 26.5.5. Verify against the entity class before re
 |---|---|
 | `realm` | Almost everything — heavy operation |
 | `user_entity` | `user_attribute`, `user_role_mapping`, `user_group_membership`, `credential`, `user_required_action`, `user_consent` (+ `user_consent_client_scope`), `federated_identity` |
-| `keycloak_role` | `user_role_mapping`, `group_role_mapping`, `composite_role` (parent and child), `role_attribute`, `client_scope_role_mapping` |
+| `keycloak_role` | `user_role_mapping`, `group_role_mapping`, `composite_role` (parent and child), `role_attribute`, `client_scope_role_mapping`, `scope_mapping` |
 | `keycloak_group` | `group_attribute`, `user_group_membership`, `group_role_mapping`, `keycloak_group` (children recursively), `realm_default_groups` |
 | `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_node_registrations`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope`, consent scope rows |

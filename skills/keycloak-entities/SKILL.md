@@ -288,7 +288,7 @@ Keycloak relies on a mix of DB-level FK cascades AND application-level cleanup.
 |---|---|
 | `realm` | Almost everything in the realm — heavy operation |
 | `user_entity` | `user_attribute`, `user_role_mapping`, `user_group_membership`, `credential`, `user_required_action`, `user_consent`, `federated_identity` |
-| `keycloak_role` | `user_role_mapping`, `group_role_mapping`, `composite_role` (both as parent and child), `role_attribute`, `client_scope_role_mapping` |
+| `keycloak_role` | `user_role_mapping`, `group_role_mapping`, `composite_role` (both as parent and child), `role_attribute`, `client_scope_role_mapping`, `scope_mapping` |
 | `keycloak_group` | `group_attribute`, `user_group_membership`, `group_role_mapping`, `keycloak_group` (children recursively), `realm_default_groups` |
 | `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope` |
