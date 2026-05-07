@@ -121,12 +121,16 @@ The `resource_server.decision_strategy` column (added authz-7.0.0) is the realm-
 
 **Schema**:
 - `id` (UUID)
-- `resource_server_id` (FK)
-- `resource_id` (FK)
-- `scope_id` (FK)
-- `owner` (user ID — the resource owner)
-- `requester` (user ID — who's asking)
-- `granted_timestamp` (when permission granted)
+- `owner` (NOT NULL, user ID — the resource owner)
+- `requester` (NOT NULL, user ID — who's asking)
+- `resource_server_id` (NOT NULL, FK → `resource_server.id`)
+- `resource_id` (NOT NULL, FK → `resource_server_resource.id`)
+- `scope_id` (nullable, FK → `resource_server_scope.id`)
+- `created_timestamp` (NOT NULL, BIGINT — when the ticket was issued)
+- `granted_timestamp` (nullable, BIGINT — populated only when permission is granted)
+- `policy_id` (nullable, FK → `resource_server_policy.id` — populated when granted; the policy that authorizes the request)
+
+**Unique constraint** on `(owner, requester, resource_server_id, resource_id, scope_id)` — at most one ticket per (owner, requester, server, resource, scope). Re-requesting overwrites rather than duplicating.
 
 Tickets are typically short-lived. UMA flow expects the requester to redeem them quickly.
 
