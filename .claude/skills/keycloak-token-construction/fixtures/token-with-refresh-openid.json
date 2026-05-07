@@ -1,0 +1,37 @@
+{
+  "exp": 1778129478,
+  "iat": 1778129178,
+  "jti": "onrtcc:3b2d11db-43f8-f593-26e8-9af3bdace305",
+  "iss": "http://localhost:8080/realms/myrealm",
+  "aud": "account",
+  "sub": "8e04484a-aed5-4388-97cb-b710d358cc8e",
+  "typ": "Bearer",
+  "azp": "test-client",
+  "sid": "BuK6LBdZV-RGVzeFhQEWeGEO",
+  "acr": "1",
+  "allowed-origins": [
+    "http://localhost:8080"
+  ],
+  "realm_access": {
+    "roles": [
+      "default-roles-myrealm",
+      "offline_access",
+      "uma_authorization"
+    ]
+  },
+  "resource_access": {
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "openid email profile",
+  "clientHost": "172.20.0.1",
+  "email_verified": false,
+  "preferred_username": "service-account-test-client",
+  "clientAddress": "172.20.0.1",
+  "client_id": "test-client"
+}

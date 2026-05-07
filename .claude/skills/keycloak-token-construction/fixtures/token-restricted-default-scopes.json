@@ -1,0 +1,19 @@
+{
+  "exp": 1778121367,
+  "iat": 1778121067,
+  "jti": "trrtcc:4f8ade1d-64af-9ac8-da63-4b950ca2ebe2",
+  "iss": "http://localhost:8080/realms/myrealm",
+  "sub": "758b22cc-0c2c-4581-be47-1465924cee84",
+  "typ": "Bearer",
+  "azp": "test-client-restricted",
+  "acr": "1",
+  "allowed-origins": [
+    "http://localhost:8080"
+  ],
+  "scope": "email profile",
+  "clientHost": "172.20.0.1",
+  "email_verified": false,
+  "preferred_username": "service-account-test-client-restricted",
+  "clientAddress": "172.20.0.1",
+  "client_id": "test-client-restricted"
+}

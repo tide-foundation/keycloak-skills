@@ -1,0 +1,6 @@
+2026-05-07 07:04:09,066 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Loa level when authenticated to client adv3-client: -1
+2026-05-07 07:04:09,066 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Level sent in the token to client adv3-client: 1. Original loa from the authentication: 1
+2026-05-07 07:04:09,066 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Using full scope for client adv3-client
+2026-05-07 07:04:09,066 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Loa level when authenticated to client adv3-client: -1
+2026-05-07 07:04:09,066 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Level sent in the token to client adv3-client: 1. Original loa from the authentication: 1
+2026-05-07 07:04:09,069 INFO  [org.keycloak.events] (executor-thread-1) type="CLIENT_LOGIN", realmId="86b580cf-47ef-49a9-9ff3-2af34a1739b2", realmName="adv-3", clientId="adv3-client", userId="cf569761-bf3e-4e64-9368-aebbc407fa47", ipAddress="172.20.0.1", token_id="trrtcc:105e3caa-80b5-5f47-a6dd-faf7c25bc114", grant_type="client_credentials", scope="openid profile email", client_auth_method="client-secret", username="service-account-adv3-client", authSessionParentId="HmQ4j1gkwnwHDbcx42hoxezC", authSessionTabId="WoTX9FP24v0"

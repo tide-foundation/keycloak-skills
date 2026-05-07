@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "url": "http://localhost:8080/realms/adv-2/protocol/openid-connect/token",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "form": {
+    "grant_type": "password",
+    "client_id": "adv2-client",
+    "client_secret": "dTjUZ3HjQuS5R8szaU7z3TL4vdVUwZx1",
+    "username": "adv2-user",
+    "password": "password",
+    "scope": "openid"
+  },
+  "curl": "curl -X POST http://localhost:8080/realms/adv-2/protocol/openid-connect/token -H 'Content-Type: application/x-www-form-urlencoded' -d 'grant_type=password' -d 'client_id=adv2-client' -d 'client_secret=dTjUZ3HjQuS5R8szaU7z3TL4vdVUwZx1' -d 'username=adv2-user' -d 'password=password' -d 'scope=openid'"
+}

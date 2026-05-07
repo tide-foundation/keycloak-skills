@@ -1,0 +1,3 @@
+2026-05-07 02:31:07,198 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Scopes to validate requested scopes against: web-origins service_account acr roles profile basic email
+2026-05-07 02:31:07,198 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Requested scopes: custom-scope
+2026-05-07 02:31:07,198 WARN  [org.keycloak.events] (executor-thread-1) type="CLIENT_LOGIN_ERROR", realmId="9fe2de1a-ad0f-44cd-9466-51c6f6e20e4e", realmName="myrealm", clientId="test-client", userId="8e04484a-aed5-4388-97cb-b710d358cc8e", ipAddress="172.20.0.1", error="invalid_request", reason="Invalid scopes: custom-scope", grant_type="client_credentials", client_auth_method="client-secret", username="service-account-test-client"

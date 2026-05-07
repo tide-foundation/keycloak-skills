@@ -1,0 +1,14 @@
+{
+  "method": "POST",
+  "url": "http://localhost:8080/realms/adv-3/protocol/openid-connect/token",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "form": {
+    "grant_type": "client_credentials",
+    "client_id": "adv3-client",
+    "client_secret": "adv3-secret-deadbeef",
+    "scope": "openid"
+  },
+  "curl": "curl -X POST http://localhost:8080/realms/adv-3/protocol/openid-connect/token -H 'Content-Type: application/x-www-form-urlencoded' -d 'grant_type=client_credentials' -d 'client_id=adv3-client' -d 'client_secret=adv3-secret-deadbeef' -d 'scope=openid'"
+}

@@ -1,18 +1,32 @@
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Editors
+*.swp
+*.swo
+*~
 .idea/
 .vscode/
-*.swp
-*~
-
-# Local agent state
-.claude/
 .cursor/
+
+# Local environment / secrets
+.env
+.env.*
+
+# Local agent overrides (project-shared .claude/settings.json IS tracked)
+.claude/settings.local.json
 AGENTS.local.md
 CLAUDE.local.md
 
-# Node (in case anyone runs tooling)
+# Internal research and validation notes — not part of the published skill
+.claude/skills/keycloak-token-construction/research-notes.md
+.claude/skills/keycloak-token-construction/verification-report.md
+.claude/skills/keycloak-token-construction/verification-report-v2.md
+
+# Build artifacts (in case scripts/tooling get added later)
+__pycache__/
+*.pyc
+*.pyo
 node_modules/

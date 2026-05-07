@@ -1,0 +1,19 @@
+{
+  "acr": "1",
+  "azp": "adv1-client",
+  "collision_claim": "value-from-zulu",
+  "email": "adv1-user-collision@example.invalid",
+  "email_verified": true,
+  "exp": 1778132063,
+  "family_name": "Collision",
+  "given_name": "Adv1",
+  "iat": 1778131763,
+  "iss": "http://localhost:8080/realms/adv-1",
+  "jti": "onrtro:98211eda-1e6b-d3d0-ad34-f0c95a199939",
+  "name": "Adv1 Collision",
+  "preferred_username": "adv1-user-collision",
+  "scope": "openid profile email",
+  "sid": "SN4APqI6Iw-7QsHgi-5aKZLf",
+  "sub": "e3b169a1-c785-4693-a08e-6926cd3e4cf1",
+  "typ": "Bearer"
+}
