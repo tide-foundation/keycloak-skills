@@ -293,8 +293,8 @@ Keycloak relies on a mix of DB-level FK cascades AND application-level cleanup.
 | `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope` |
 | `component` | `component_config`, child `component` rows recursively |
-| `authentication_flow` | `authentication_execution` (where `flow_id` or `auth_flow_id` matches) |
-| `identity_provider` | `identity_provider_config`, `identity_provider_mapper`, `idp_mapper_config` |
+| `authentication_flow` | `authentication_execution` (where `flow_id` matches — JPA cascade). **Removal blocked** by `KeycloakModelUtils.isFlowUsed` if any execution references this flow via `auth_flow_id` (i.e., it's invoked as a sub-flow elsewhere) — operation throws `ModelException("Cannot remove authentication flow, it is currently in use")` rather than cascading. |
+| `identity_provider` | `identity_provider_config` (JPA `@ElementCollection`), `identity_provider_mapper` + `idp_mapper_config` (provider-level via `getMappersByAliasStream`). **Not cascaded**: `federated_identity` rows referencing this IDP — its `IDENTITY_PROVIDER` column is a plain `VARCHAR(255)` alias with no FK constraint, so the rows persist (intentionally — re-creating an IDP with the same alias resumes linkage). |
 | `resource_server` | All Authorization Services data (resources, scopes, policies, perm tickets) |
 
 **Implication for extensions**: if you intercept delete on a parent and want to defer it for approval workflow, you must also block the cascade. Either intercept at the REST layer (return 409 before model.removeX runs), or throw an exception in your provider's removeX override (causes transaction rollback).
@@ -375,7 +375,7 @@ Don't write recursive JPQL. Use `RoleUtils.getDeepUserRoleMappings(user)`.
 
 ### Composite role children/parents
 ```java
-"SELECT cr FROM CompositeRoleEntity cr WHERE cr.composite = :role"   // children
+"SELECT cr FROM CompositeRoleEntity cr WHERE cr.parentRole = :role"   // children (NOTE: JPA field is 'parentRole', column is 'COMPOSITE' — gotcha #12)
 "SELECT cr FROM CompositeRoleEntity cr WHERE cr.childRole = :role"   // parents
 ```
 

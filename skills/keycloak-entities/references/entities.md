@@ -35,8 +35,8 @@ Version pinning: see `../SKILL.md`.
 | `user_entity` | `UserEntity` | id | realm_id → realm.id | A user account |
 | `user_attribute` | `UserAttributeEntity` | id (simple) | user_id → user_entity.id | Custom user attributes (multi-valued) |
 | `user_required_action` | `UserRequiredActionEntity` | (action, user_id) | user_id → user_entity.id | Pending required actions |
-| `user_role_mapping` | `UserRoleMappingEntity` | (user_id, role_id) | user_id → user_entity.id, role_id → keycloak_role.id | User → role assignments |
-| `user_group_membership` | `UserGroupMembershipEntity` | (user_id, group_id) + membership_type | user_id → user_entity.id, group_id → keycloak_group.id | User → group memberships |
+| `user_role_mapping` | `UserRoleMappingEntity` | (role_id, user_id) | user_id → user_entity.id, role_id → keycloak_role.id | User → role assignments |
+| `user_group_membership` | `UserGroupMembershipEntity` | (group_id, user_id) | user_id → user_entity.id, group_id → keycloak_group.id | User → group memberships. `membership_type` column (KC 26+) is not part of the PK; see gotcha #20 in SKILL.md. |
 | `user_consent` | `UserConsentEntity` | id | user_id → user_entity.id, client_id → client.id | OAuth2 consent grants |
 | `user_consent_client_scope` | (no entity) | (user_consent_id, scope_id) | both | Scopes granted in a consent |
 | `username_login_failure` | (no entity) | (realm_id, username) | realm_id → realm.id | Brute-force protection state |
@@ -91,12 +91,12 @@ Version pinning: see `../SKILL.md`.
 
 **`default-roles-<realm>` role**: every realm has an auto-generated composite role with this name. Contains all realm-default + client-default roles via `composite_role` children. Granted to all users by default.
 
-**Cannot delete a role that's a composite child** — must first remove from all parents, or use the model API.
+**Composite-membership cleanup on role delete**: the model API (`session.roles().removeRole(role)`) calls the `deleteRoleFromComposites` named query first, which removes the role from `composite_role` as both `parentRole` AND `childRole` before the JPA delete. Raw SQL `DELETE FROM keycloak_role` will FK-violate against `composite_role` — clean it manually first or stick to the provider API.
 
 Common JPQL:
 ```java
-// Children of a role
-"SELECT cr FROM CompositeRoleEntity cr WHERE cr.composite = :role"
+// Children of a role (NOTE: JPA field is 'parentRole', column is 'COMPOSITE' — gotcha #12)
+"SELECT cr FROM CompositeRoleEntity cr WHERE cr.parentRole = :role"
 // Parents of a role
 "SELECT cr FROM CompositeRoleEntity cr WHERE cr.childRole = :role"
 // Realm roles
@@ -337,10 +337,18 @@ user.grantRole(role);  // writes to fed_user_role_mapping if user is federated
 
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
-| `user_consent` | `UserConsentEntity` | id | user_id → user_entity.id, client_id → client.id | OAuth2 consent grant per (user, client) |
+| `user_consent` | `UserConsentEntity` | id | user_id → user_entity.id, client_id → client.id (or federated client identity, see below) | OAuth2 consent grant per (user, client) |
 | `user_consent_client_scope` | (no entity) | (user_consent_id, scope_id) | both | Scopes granted in this consent |
 
-**Unique constraint** on `(user_id, client_id)` — at most one consent per (user, client) pair. Updated in place when scopes change.
+**Schema**: `id`, `user_id`, `client_id`, `client_storage_provider`, `external_client_id`, `created_date BIGINT`, `last_updated_date BIGINT`. The `client_storage_provider` and `external_client_id` columns (added 4.0.0) support consents for **federated clients** stored in a `ClientStorageProvider` (e.g. LDAP-backed clients) — local-realm clients have these as null.
+
+**Unique constraints** at 26.5.5 (both added in 25.0.0, replacing the older 4-column `UK_JKUWUVD56...` that was dropped):
+- `UK_LOCAL_CONSENT` on `(client_id, user_id)` — one consent per (user, local-client) pair.
+- `UK_EXTERNAL_CONSENT` on `(client_storage_provider, external_client_id, user_id)` — one consent per (user, federated-client) pair.
+
+Local-client consents have NULL in `client_storage_provider` / `external_client_id`; federated-client consents have NULL in `client_id`.
+
+Updated in place when scopes change rather than inserting new rows.
 
 **How consent works**: when `client.consent_required = true`, on first login Keycloak shows consent screen; user accepts → row inserted/updated. Subsequent logins skip prompt unless new scopes are requested.
 
@@ -469,8 +477,8 @@ Authoritative list at Keycloak 26.5.5. Verify against the entity class before re
 | `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_node_registrations`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope`, consent scope rows |
 | `component` | `component_config`, child `component` rows recursively |
-| `authentication_flow` | `authentication_execution` (where `flow_id` or `auth_flow_id` matches) |
-| `identity_provider` | `identity_provider_config`, `identity_provider_mapper`, `idp_mapper_config` |
+| `authentication_flow` | `authentication_execution` (where `flow_id` matches — JPA cascade). Deletion is **blocked** by `KeycloakModelUtils.isFlowUsed` when any execution references this flow via `auth_flow_id` (used as a sub-flow elsewhere); the operation throws `ModelException("Cannot remove authentication flow, it is currently in use")` instead of cascading. |
+| `identity_provider` | `identity_provider_config` (JPA `@ElementCollection`), `identity_provider_mapper` + `idp_mapper_config` (provider-level via `getMappersByAliasStream`). **Not cascaded**: `federated_identity` rows referencing this IDP persist (the `IDENTITY_PROVIDER` column is a plain `VARCHAR(255)` alias, no FK; this is intentional so an IDP re-created with the same alias resumes existing user linkages). |
 
 **Implication for extensions**: if you intercept delete on a parent and want to defer it, you must also block the cascade. Either intercept at REST layer (return 409) OR throw in your `*Provider.removeX()` to roll back the transaction.
 
