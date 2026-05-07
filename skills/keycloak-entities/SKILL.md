@@ -21,8 +21,8 @@ Entity classes live under `model/jpa/src/main/java/`:
 | `org/keycloak/storage/jpa/entity/` | Federated user entities (`FederatedUser*`) |
 | `org/keycloak/authorization/jpa/entities/` | Authorization Services (UMA) entities |
 | `org/keycloak/events/jpa/` | Event/audit log entities |
-| `org/keycloak/migration/MigrationModelEntity.java` | Schema migration tracker |
-| `org/keycloak/organization/jpa/entity/` | Organizations (Keycloak 25+) |
+| `org/keycloak/models/jpa/entities/MigrationModelEntity.java` | Schema migration tracker |
+| `org/keycloak/models/jpa/entities/Organization*Entity.java` | Organizations (Keycloak 25+). Adapters and the provider live separately at `org/keycloak/organization/jpa/`. |
 
 Schema migrations: `model/jpa/src/main/resources/META-INF/jpa-changelog-*.xml` (Liquibase). Entity classes show JPA mapping; changelogs are authoritative for DB-side constraints/indexes.
 
@@ -244,6 +244,11 @@ The realm named `master` has admin authority over all other realms. Many extensi
 if ("master".equals(realm.getName())) return;
 ```
 
+### 19. Not every entity has `@NamedQuery` annotations
+`UserEntity`, `RoleEntity`, `GroupEntity`, `ClientEntity`, `CredentialEntity`, and `ClientScopeEntity` define named queries. **`ComponentEntity` and `IdentityProviderEntity` do not** — they have zero `@NamedQuery` declarations on the class. Calling `em.createNamedQuery("getComponents", ComponentEntity.class)` throws `IllegalArgumentException` at runtime.
+
+For those entities, use the model API (`realm.getComponentsStream(...)`, `realm.getIdentityProvidersStream()`, etc.) or write inline JPQL / Criteria against the entity directly. See [references/entities.md](./references/entities.md) for the authoritative list of named queries per entity.
+
 ---
 
 ## Cascading Deletes
@@ -316,14 +321,18 @@ Audit log preservation: `event_entity` and `admin_event_entity` deliberately hav
 EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
 ```
 
-### Always prefer named queries
-Most entities define them with `@NamedQueries(...)`. Examples:
-- `UserEntity`: `getRealmUserById`, `getRealmUserByUsername`, `getRealmUserByEmail`, `getAllUsersByRealm`
-- `RoleEntity`: `getRealmRoleByName`, `getClientRoleByName`, `getRealmRoles`, `getClientRoles`
-- `GroupEntity`: `getGroupIdsByParent`, `getTopLevelGroups`
-- `ClientEntity`: `getClientsByClientId`, `getAllRedirectUrisOfEnabledClients`
-- `ComponentEntity`: `getComponents`, `getComponentsByParent`
-- `IdentityProviderEntity`: `findIdentityProviderByAlias`
+### Prefer named queries when one exists
+Many entities define them with `@NamedQueries(...)`, but **not all do**. Verify the name in the entity class before using it. Real names at 26.5.5:
+
+- `UserEntity`: `getRealmUserByUsername`, `getRealmUserByEmail`, `getRealmUserByLastName`, `getRealmUserByFirstLastName`, `getRealmUserByServiceAccount`, `getRealmUsersByAttributeNameAndValue`, `getRealmUsersByAttributeNameAndLongValue`, `deleteUsersByRealm`, `deleteUsersByRealmAndLink`, `unlinkUsers`
+- `RoleEntity`: `getRealmRoleByName`, `getRealmRoleIdByName`, `getClientRoleByName`, `getClientRoleIdByName`, `getRealmRoles`, `getClientRoles`, `getRealmRoleIds`, `getClientRoleIds`, `getRoleIdsFromIdList`, `getRoleIdsByNameContainingFromIdList`, `getChildRoles`, `searchForRealmRoles`, `searchForClientRoles`
+- `GroupEntity`: `getGroupIdsByParent`, `deleteGroupsByRealm` (no `getTopLevelGroups` query — use `JpaRealmProvider.getTopLevelGroupsStream` or filter on `parentId = ' '`)
+- `ClientEntity`: `getClientById`, `findClientByClientId`, `findClientIdByClientId`, `getAllRedirectUrisOfEnabledClients`, `getAlwaysDisplayInConsoleClients`
+- `CredentialEntity`: `credentialByUser`, `deleteCredentialsByRealm`, `deleteCredentialsByRealmAndLink`
+- `ComponentEntity`: **none** — no `@NamedQuery` on the entity. Use `KeycloakSession.realms().getProvider(JpaRealmProvider.class)` methods or write inline JPQL / Criteria.
+- `IdentityProviderEntity`: **none** — same. Use the provider API.
+
+If you remember a name from training data and it isn't in the entity class, it doesn't exist. Don't `em.createNamedQuery(...)` blind.
 
 ### Filtering relationship tables by realm (JOIN through parent)
 ```java
@@ -371,7 +380,7 @@ When the user's question matches a trigger below, **read the corresponding refer
 
 - User asks about a **specific table** not in the schema diagram above (e.g., `realm_smtp_config`, `client_node_registrations`, `idp_mapper_config`, `authenticator_config_entry`)
 - User asks for the **full column list** of an entity
-- User asks about a **specific named query** by name (e.g., "what does `getRealmUserCountWhereServiceAccount` do?")
+- User asks about a **specific named query** by name (e.g., "what does `getRealmUserByServiceAccount` do?")
 - User mentions a specific entity by **Java class name** (`UserEntity`, `RoleEntity`, `ClientEntity`, `FederatedUserAttributeEntity`, etc.) and wants details
 - User asks "**what's in column X**?" or "**what does table Y store**?"
 - User is writing **JPQL or SQL with specific column names** and needs to verify the schema

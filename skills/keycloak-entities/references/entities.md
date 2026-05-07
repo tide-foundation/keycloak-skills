@@ -393,21 +393,29 @@ UPDATE DATABASECHANGELOGLOCK SET LOCKED = FALSE, LOCKEDBY = NULL, LOCKGRANTED = 
 
 ## Common Named Queries
 
-Most entities define them with `@NamedQueries(...)`. Look at the entity class to find them.
+Authoritative list at Keycloak 26.5.5. Verify against the entity class before relying on a name. **Some major entities have no `@NamedQuery` annotations** — those are called out explicitly. For entities without named queries, use the provider API or write inline JPQL / Criteria.
 
-| Entity | Selected named queries |
+| Entity | Named queries (real, at 26.5.5) |
 |---|---|
-| `UserEntity` | `getRealmUserById`, `getRealmUserByUsername`, `getRealmUserByEmail`, `getAllUsersByRealm`, `getRealmUserCountWhereServiceAccount` |
-| `RoleEntity` | `getRealmRoleByName`, `getClientRoleByName`, `getRealmRoles`, `getClientRoles`, `getRoleIdsFromIdsExcludedByMembership` |
-| `GroupEntity` | `getGroupIdsByParent`, `getTopLevelGroups`, `getGroupCount` |
-| `ClientEntity` | `getClientsByClientId`, `getAllRedirectUrisOfEnabledClients` |
-| `ClientScopeEntity` | `getClientScopeNames`, `getClientScopeIdsByName` |
-| `CredentialEntity` | `credentialByUserAndType`, `deleteCredentialsByUser` |
-| `ComponentEntity` | `getComponents`, `getComponentsByParent`, `getComponentsByParentAndType` |
-| `IdentityProviderEntity` | `findIdentityProviderByAlias`, `findIdentityProvidersByRealm` |
-| `AuthenticationFlowEntity` | `getAuthenticationFlowsByRealm` |
-| `RealmEntity` | `getAllRealmIds` |
-| `EventEntity` | `clearEventsByRealmAndExpiredEvents`, `clearAllEvents` |
+| `UserEntity` | `getRealmUserByUsername`, `getRealmUserByEmail`, `getRealmUserByLastName`, `getRealmUserByFirstLastName`, `getRealmUserByServiceAccount`, `getRealmUsersByAttributeNameAndValue`, `getRealmUsersByAttributeNameAndLongValue`, `deleteUsersByRealm`, `deleteUsersByRealmAndLink`, `unlinkUsers` |
+| `RoleEntity` | `getRealmRoleByName`, `getRealmRoleIdByName`, `getClientRoleByName`, `getClientRoleIdByName`, `getRealmRoles`, `getClientRoles`, `getRealmRoleIds`, `getClientRoleIds`, `getRoleIdsFromIdList`, `getRoleIdsByNameContainingFromIdList`, `getChildRoles`, `searchForRealmRoles`, `searchForClientRoles` |
+| `GroupEntity` | `getGroupIdsByParent`, `deleteGroupsByRealm` (no `getTopLevelGroups` — filter on `parentId = ' '` or use `JpaRealmProvider.getTopLevelGroupsStream`) |
+| `ClientEntity` | `getClientById`, `findClientByClientId`, `findClientIdByClientId`, `getAllRedirectUrisOfEnabledClients`, `getAlwaysDisplayInConsoleClients` |
+| `ClientScopeEntity` | `getClientScopeIds` |
+| `CredentialEntity` | `credentialByUser`, `deleteCredentialsByRealm`, `deleteCredentialsByRealmAndLink` |
+| `RealmEntity` | `getAllRealmIds`, `getRealmIdByName`, `getRealmIdsWithNameContaining`, `getRealmIdsWithProviderType` |
+| `MigrationModelEntity` | (defines schema-version queries — see the class) |
+| `CompositeRoleEntity` | (see class for delete queries) |
+| `UserRoleMappingEntity`, `UserGroupMembershipEntity`, `GroupRoleMappingEntity` | composite-PK relationship entities, each with their own delete-by-realm / delete-by-parent queries |
+| Federated user entities (`FederatedUser*`) | each defines its own delete-by-realm / delete-by-storage-provider queries |
+| `ComponentEntity` | **none** — use the provider API or inline JPQL |
+| `IdentityProviderEntity` | **none** — use the provider API or inline JPQL |
+| `IdentityProviderMapperEntity` | **none** |
+| `ProtocolMapperEntity` | **none** |
+| `AuthenticationFlowEntity` | **none** — use `RealmAdapter` / `JpaRealmProvider` |
+| `AuthenticatorConfigEntity` | **none** |
+| `EventEntity` | **none** — `JpaEventStoreProvider` writes raw JPQL |
+| `AdminEventEntity` | **none** — same |
 
 ---
 
