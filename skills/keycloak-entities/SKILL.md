@@ -251,6 +251,16 @@ if ("master".equals(realm.getName())) return;
 
 For those entities, use the model API (`realm.getComponentsStream(...)`, `realm.getIdentityProvidersStream()`, etc.) or write inline JPQL / Criteria against the entity directly. See [references/entities.md](./references/entities.md) for the authoritative list of named queries per entity.
 
+### 20. `keycloak_group.type` separates regular groups from organizations (KC 26.0+)
+Since 26.0.0, `KEYCLOAK_GROUP` has a `TYPE INT NOT NULL` column. Values come from `GroupModel.Type`:
+
+- `0` = `REALM` — regular group
+- `1` = `ORGANIZATION` — backs an organization (referenced from `org.group_id`)
+
+A bare `SELECT ... FROM keycloak_group WHERE realm_id = ?` returns **both kinds**, and org-groups also appear in `user_group_membership` for org members. This is a silent correctness bug for naive queries.
+
+Filter on `TYPE = 0` for regular groups, or use `JpaRealmProvider.getGroupsStream(realm)` which adds the type predicate automatically. The named queries `getGroupsByMember` / `getGroupsByFederatedMember` filter on `type = 1` to enumerate a user's organizations.
+
 ---
 
 ## Cascading Deletes

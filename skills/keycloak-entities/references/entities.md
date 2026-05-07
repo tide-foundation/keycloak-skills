@@ -59,7 +59,7 @@ Version pinning: see `../SKILL.md`.
 |---|---|---|---|---|
 | `credential` | `CredentialEntity` | id | user_id → user_entity.id | All credential types: password, OTP, WebAuthn, recovery codes |
 
-**Schema**: `id`, `user_id`, `type` (`password`, `otp`, `totp`, `webauthn`, `recovery-authn-codes`), `created_date`, `user_label`, `secret_data` (JSON, hashed), `credential_data` (JSON, type-specific config), `priority` (ordering for multiple credentials of same type).
+**Schema**: `id`, `user_id`, `type` (`password`, `otp`, `totp`, `webauthn`, `recovery-authn-codes`), `created_date`, `user_label`, `secret_data` (JSON, hashed), `credential_data` (JSON, type-specific config), `priority` (ordering for multiple credentials of same type), `version` (KC 26.2+, INT, `@Version` optimistic-lock counter incremented on every update — `OptimisticLockException` on stale write).
 
 **Type-specific JSON** in `secret_data` / `credential_data`:
 - Password: `secret_data` = `{value, salt}`; `credential_data` = `{algorithm, hashIterations}`
@@ -122,6 +122,17 @@ Common JPQL:
 **Unique constraint** `(realm_id, parent_group, name)` — same name allowed in different parents.
 
 **Members inherit roles** through `group_role_mapping` recursively up the hierarchy. Use `user.getGroupsStream().flatMap(g -> g.getRoleMappingsStream())` for effective roles via groups.
+
+**`TYPE` column (KC 26.0+)**: distinguishes regular groups from organization-backing groups.
+
+| `TYPE` value | `GroupModel.Type` | Meaning |
+|---|---|---|
+| `0` | `REALM` | Regular group |
+| `1` | `ORGANIZATION` | Backs an organization (referenced from `org.group_id`) |
+
+A naive query like `SELECT * FROM keycloak_group WHERE realm_id = ?` returns **both kinds**. Org-groups also appear in `user_group_membership` for org members. Filter on `TYPE = 0` for "real" groups, or use `JpaRealmProvider.getGroupsStream` which only returns `TYPE = 0`. The named queries `getGroupsByMember` and `getGroupsByFederatedMember` filter on `g.type = 1` to find a user's organizations.
+
+**`DESCRIPTION` column (KC 26.3+)**: `NVARCHAR(255)`, nullable. Free-text group description.
 
 ---
 
@@ -277,17 +288,20 @@ component (LDAP, parent_id = realm.id)
 
 ## 12. Federated users
 
-When users come from external storage their per-user data is in `fed_*` tables with **NO foreign keys**:
+When users come from external storage their per-user data is in `fed_*` tables with **no FKs to `user_entity`**:
 
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
 | `fed_user_attribute` | `FederatedUserAttributeEntity` | id (simple) | (no FKs) | Federated user attributes |
 | `fed_user_credential` | `FederatedUserCredentialEntity` | id | (no FKs) | Federated user credentials |
-| `fed_user_consent` | `FederatedUserConsentEntity` | id | realm_id → realm.id | OAuth2 consents |
+| `fed_user_consent` | `FederatedUserConsentEntity` | id | (no FKs; realm_id is a varchar column) | OAuth2 consents |
 | `fed_user_consent_cl_scope` | (no entity) | (user_consent_id, scope_id) | user_consent_id → fed_user_consent.id | Scopes in fed consent |
-| `fed_user_group_membership` | `FederatedUserGroupMembershipEntity` | (group_id, user_id, realm_id) | group_id → keycloak_group.id, realm_id → realm.id | Federated user → group |
-| `fed_user_required_action` | `FederatedUserRequiredActionEntity` | (required_action, user_id, realm_id) | realm_id → realm.id | Pending actions |
-| `fed_user_role_mapping` | `FederatedUserRoleMappingEntity` | (role_id, user_id, realm_id) | role_id → keycloak_role.id, realm_id → realm.id | Federated user → role |
+| `fed_user_group_membership` | `FederatedUserGroupMembershipEntity` | (group_id, user_id) | (no FKs; group_id and realm_id are varchar columns) | Federated user → group |
+| `fed_user_required_action` | `FederatedUserRequiredActionEntity` | (required_action, user_id) | (no FKs) | Pending actions |
+| `fed_user_role_mapping` | `FederatedUserRoleMappingEntity` | (role_id, user_id) | (no FKs; role_id and realm_id are varchar columns) | Federated user → role |
+| `broker_link` | `BrokerLinkEntity` | (identity_provider, user_id) | (no FKs) | Federated user ↔ external IdP link (parallel to `federated_identity` for non-federated users) |
+
+The 2-column PKs on `fed_user_role_mapping` / `_group_membership` / `_required_action` do **not** include `realm_id` — it is stored as a denormalized column for filtering and cleanup, but is not part of the unique key. Federated user IDs are expected to be globally unique (typically prefixed `f:<storage-provider-id>:<external-id>`), so collisions across realms are avoided by ID convention rather than by schema.
 
 **Why no FKs to user_entity**: federated users live outside Keycloak's `user_entity` (in LDAP, Kerberos, custom storage). Each row carries `user_id + realm_id + storage_provider_id` instead.
 
@@ -344,10 +358,12 @@ user.grantRole(role);  // writes to fed_user_role_mapping if user is federated
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
 | `offline_user_session` | `PersistentUserSessionEntity` | (user_session_id, offline_flag) | realm_id → realm.id (varchar) | Persistent offline user sessions |
-| `offline_client_session` | `PersistentClientSessionEntity` | (user_session_id, client_id, offline_flag) | (no FK) | Per-client offline session notes |
-| `revoked_token` | `RevokedTokenEntity` | id | (no FK) | Token blacklist |
+| `offline_client_session` | `PersistentClientSessionEntity` | (user_session_id, client_id, client_storage_provider, external_client_id, offline_flag) | (no FK) | Per-client offline session notes |
+| `revoked_token` | `RevokedTokenEntity` | id (varchar(255)) | (no FK) | Token blacklist (KC 26.0+) |
 
-**Removed in Keycloak 26.0**: `user_session`, `client_session`, `client_session_role`, `client_session_note`, `client_session_auth_status`, `client_user_session_note`, `user_session_note`. These are now Infinispan-only. If you query them on 26+ you'll get nothing or table-not-found.
+**5-column PK on `offline_client_session`** since 4.0.0 (was 2-column before). The extra `client_storage_provider` and `external_client_id` columns let federated clients (LDAP-stored) coexist with realm clients without ID collision.
+
+**Removed in Keycloak 26.0**: `user_session`, `user_session_note`, `client_session`, `client_session_role`, `client_session_note`, `client_session_prot_mapper`, `client_session_auth_status`, `client_user_session_note`. These are now Infinispan-only. If you query them on 26+ you'll get nothing or table-not-found.
 
 **Persistent (offline) sessions still hit DB** for survival across cluster restarts.
 
