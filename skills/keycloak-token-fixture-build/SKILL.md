@@ -1,14 +1,14 @@
 ---
 name: keycloak-token-fixture-build
-description: Methodology and templates for building adversarial test fixtures for the `keycloak-token-construction` skill, plus the two-phase fresh-context predictor harness. Use when adding a new `fixtures/adversarial-N/` fixture, validating a SKILL.md or references/ edit hasn't regressed an existing fixture, designing a seam to probe a specific invariant, deciding the verdict of a prediction-vs-actual diff, or coordinating the builder-then-fresh-predictor agent split. Engage proactively whenever a SKILL.md change is being considered or after one is made, since untested edits can silently regress invariants.
+description: Methodology and templates for building adversarial test fixtures for the `keycloak-token-construction` skill, plus the two-phase fresh-context predictor harness. Use when adding a new `tests/token-construction/adversarial-N/` fixture, validating a SKILL.md or references/ edit hasn't regressed an existing fixture, designing a seam to probe a specific invariant, deciding the verdict of a prediction-vs-actual diff, or coordinating the builder-then-fresh-predictor agent split. Engage proactively whenever a SKILL.md change is being considered or after one is made, since untested edits can silently regress invariants.
 ---
 
 # Building adversarial fixtures for `keycloak-token-construction`
 
-This skill operates exclusively on the
-`.claude/skills/keycloak-token-construction/` skill (the **target skill**)
-and on `fixtures/adversarial-N/` directories at the repo root. It does
-not generalise to other skills.
+This skill operates exclusively on the `keycloak-token-construction`
+skill (the **target skill**, at `skills/keycloak-token-construction/`)
+and on `tests/token-construction/adversarial-N/` directories at the
+repo root. It does not generalise to other skills.
 
 In-scope: designing a seam to probe a specific invariant; constructing a
 realm + client + scopes + mappers config that exercises the seam; capturing
@@ -145,7 +145,7 @@ should be rebuilt before scoring.
 Required public artifacts (predictor sees these):
 
 ```
-fixtures/adversarial-N/
+tests/token-construction/adversarial-N/
 ├── realm-config.json          # full realm export from admin REST API
 ├── request*.json              # token request body, one per request the fixture issues
 └── prediction-target.md       # commit-or-fail criteria, trap menu
@@ -154,7 +154,7 @@ fixtures/adversarial-N/
 Required scoring artifacts (predictor must NOT read these):
 
 ```
-fixtures/adversarial-N/
+tests/token-construction/adversarial-N/
 ├── setup.md                   # full pre-mint reasoning, seam description
 ├── actual-token*.json         # decoded JWT payload, one per request
 ├── log*.txt                   # bracketed docker logs slice, one per request
@@ -166,12 +166,12 @@ fixtures/adversarial-N/
 Use the templates in `assets/` for `setup.md`, `prediction-target.md`,
 `diff.md`, `surprises.md`. The `prediction.json` shape is the
 fresh-context predictor's responsibility — give it
-`fixtures/adversarial-1/prediction.json` as a shape reference in the
-prompt, but do not pre-fill it.
+`tests/token-construction/adversarial-1/prediction.json` as a shape
+reference in the prompt, but do not pre-fill it.
 
 ## Operational notes
 
-- Keycloak runs from `.claude/skills/keycloak-token-construction/docker-compose.yml`.
+- Keycloak runs from `skills/keycloak-token-construction/docker-compose.yml`.
   Bring it up with `docker compose up -d` from that directory; poll
   `http://localhost:8080/health/ready` until 200 (~30s). Do **not**
   `docker compose down` between fixtures — parallel builders may share
@@ -186,4 +186,4 @@ prompt, but do not pre-fill it.
 - Password-grant users in Keycloak 26.5.5 require `firstName`,
   `lastName`, and `email` populated even when `requiredActions=[]` —
   `verify-profile` authenticator demands them at runtime. See
-  `fixtures/adversarial-1/surprises.md` for the failure mode.
+  `tests/token-construction/adversarial-1/surprises.md` for the failure mode.

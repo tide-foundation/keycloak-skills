@@ -9,6 +9,8 @@ Built and maintained by the [Tide Foundation](https://tide.org).
 | Skill | Covers | Verified against |
 |---|---|---|
 | [keycloak-entities](./skills/keycloak-entities/SKILL.md) | JPA entities, schema, JPQL, Liquibase changelogs, ~90 tables, FK cascades, federated user tables, UMA Authorization Services | Keycloak 26.5.5 |
+| [keycloak-token-construction](./skills/keycloak-token-construction/SKILL.md) | OIDC token construction — scope resolution, mapper-set assembly, base claims, per-surface mapper pipeline, post-mapper transforms (audience restriction); ships eight `(request, log, token)` fixtures | Keycloak 26.5.5 |
+| [keycloak-token-fixture-build](./skills/keycloak-token-fixture-build/SKILL.md) | Methodology for adversarial regression fixtures targeting `keycloak-token-construction`; two-phase fresh-context predictor harness; verdict rubric; corpus lives in [tests/token-construction/](./tests/token-construction/) | Keycloak 26.5.5 |
 
 More skills planned: SPI development, Admin REST API, themes, deployment, testing, OIDC/SAML protocols, admin UI extension.
 

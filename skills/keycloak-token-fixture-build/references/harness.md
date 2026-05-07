@@ -98,29 +98,29 @@ the parent's tool list, not from inside the builder.
 You are a fresh-context prediction agent. Your sole job: predict
 [the specific commitment from prediction-target.md] by applying the
 `keycloak-token-construction` skill at
-`/home/sam/keycloak-skills/.claude/skills/keycloak-token-construction/`.
+`/home/sam/keycloak-skills/skills/keycloak-token-construction/`.
 You will be evaluated by comparison against an actual minted token that
 you must not see.
 
 # Inputs you MAY read
-- The target skill folder: `.claude/skills/keycloak-token-construction/`
+- The target skill folder: `skills/keycloak-token-construction/`
   — read SKILL.md and references/ as needed. Cite the skill explicitly.
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/realm-config.json`
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/request*.json`
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/prediction-target.md`
-- `/home/sam/keycloak-skills/fixtures/adversarial-1/prediction.json`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/realm-config.json`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/request*.json`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/prediction-target.md`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-1/prediction.json`
   for shape reference only (different fixture, no contamination).
 
 # Inputs you MUST NOT read (contamination)
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/actual-token*.json`
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/log*.txt`
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/setup.md`
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/surprises.md`
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/diff.md` (if exists)
-- `/home/sam/keycloak-skills/fixtures/adversarial-N/prediction.json`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/actual-token*.json`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/log*.txt`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/setup.md`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/surprises.md`
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/diff.md` (if exists)
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/prediction.json`
   (the file you will write)
 - Any actual-token JSON in
-  `.claude/skills/keycloak-token-construction/fixtures/` — those are
+  `skills/keycloak-token-construction/fixtures/` — those are
   positive-control fixtures from the skill's own validation; reading
   them risks anchoring on specific token values rather than reasoning
   from the skill text.
@@ -130,8 +130,8 @@ in your output and continue — but do not retroactively change your
 prediction based on it.
 
 # Output
-Write `/home/sam/keycloak-skills/fixtures/adversarial-N/prediction.json`.
-Adopt the same shape as `/home/sam/keycloak-skills/fixtures/adversarial-1/prediction.json`.
+Write `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/prediction.json`.
+Adopt the same shape as `/home/sam/keycloak-skills/tests/token-construction/adversarial-1/prediction.json`.
 At minimum include the committed value, `shapes_ruled_out_by_skill`,
 `skill_passages_invoked`, `reasoning`, and `fixture_target_compliance_note`.
 
@@ -166,7 +166,7 @@ commitment lands exactly.
 Existing fixtures double as regression tests. After any edit to the
 target skill's SKILL.md or references/:
 
-1. For each existing `fixtures/adversarial-N/`, delete `prediction.json`
+1. For each existing `tests/token-construction/adversarial-N/`, delete `prediction.json`
    and `diff.md` (preserve them in git history if they were
    pass-verified — but don't keep them as files because the predictor
    would read them).

@@ -20,10 +20,8 @@ desktop.ini
 AGENTS.local.md
 CLAUDE.local.md
 
-# Internal research and validation notes — not part of the published skill
-.claude/skills/keycloak-token-construction/research-notes.md
-.claude/skills/keycloak-token-construction/verification-report.md
-.claude/skills/keycloak-token-construction/verification-report-v2.md
+# Personal research and validation notes — not part of any published skill
+notes/
 
 # Build artifacts (in case scripts/tooling get added later)
 __pycache__/
