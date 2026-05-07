@@ -1,0 +1,18 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local agent state
+.claude/
+.cursor/
+AGENTS.local.md
+CLAUDE.local.md
+
+# Node (in case anyone runs tooling)
+node_modules/
