@@ -1,0 +1,189 @@
+---
+name: keycloak-token-construction
+description: Reference for Keycloak 26.5.5 OIDC token construction — scope resolution, mapper-set assembly, base claims set by `initToken`, the per-surface mapper execution pipeline, and post-mapper transforms (audience restriction). Use whenever the task involves explaining or validating which claims appear in a Keycloak-issued access token, ID token, userinfo response, or introspection response; reasoning about which mapper produced which claim or why a claim is missing; auditing a client-scope or protocol-mapper configuration against an issued token; debugging differences between full-scope and restricted clients; or answering any "why is this claim in this token?" question. Engage proactively whenever Keycloak claim provenance, mapper toggles (`access.token.claim`, `id.token.claim`, `userinfo.token.claim`, `introspection.token.claim`, `lightweight.claim`), `clientSessionCtx`, `transformAccessToken` / `transformIDToken` / `transformUserInfoAccessToken` / `transformIntrospectionAccessToken`, or "this client scope is/isn't appearing in `scope`" come up, even if the user does not name the skill.
+---
+
+# Keycloak post-authentication token construction (26.5.5)
+
+Pinned tag: **26.5.5**. Every line number cited here and in the references is at
+that tag. Out-of-scope: authentication, grant-type validation, session
+establishment, signing, hash claims (`at_hash`, `c_hash`, `s_hash`).
+In-scope: from "the user is already authenticated and we have a
+`ClientSessionContext`" through to "the claims map for the requested surface".
+
+Treat token construction as a pure function:
+
+```
+construct(user, client, requestedScopeParam, surface, sessionCtxAttrs)
+        → claimsMap
+```
+
+The five surfaces are **access token**, **ID token**, **userinfo**,
+**introspection**, and **access-token response envelope**. They share scope
+resolution and mapper-set assembly; they diverge at the per-mapper toggle check
+(see [references/mapper-execution.md](references/mapper-execution.md)).
+
+## Macro flow
+
+```
+1. Resolve scopes              → DefaultClientSessionContext.allowedClientScopes
+   (TokenManager.getRequestedClientScopes  + DCSC.isAllowed)
+
+2. Assemble mapper set         → clientSessionCtx.getProtocolMappersStream()
+   (union over allowed scopes, filtered by client.protocol and isEnabled)
+
+3. Build base claims (access)  → TokenManager.initToken
+   (id, typ, sub-if-transient, iat, azp, iss, scope, acr-if-no-stepup,
+    sid, exp — see references/base-claims.md)
+
+4. Run mapper pipeline         → TokenManager.transform<Surface>
+   sort by priority ASC, then for each mapper:
+     surface_toggle_passes(model)  ?  mapper.setClaim(token, ...)  :  skip
+
+5. Post-mapper transforms      → restrictRequestedAudience  (access-token only)
+
+6. (ID token only) generateIDToken seeds an IDToken from the *transformed*
+   access token, then runs OIDCIDTokenMapper-side mappers on it.
+```
+
+That is the entire post-auth construction loop. Everything else in this skill
+is the detail behind one of these six steps.
+
+## Per-surface entry points on `TokenManager`
+
+| Surface | Entry method | Mapper interface | Toggle key |
+| --- | --- | --- | --- |
+| Access token | `transformAccessToken` (L793) | `OIDCAccessTokenMapper` | `access.token.claim` (or `lightweight.claim` if lightweight) |
+| ID token | `transformIDToken` (L973), called from `generateIDToken` (L1262) | `OIDCIDTokenMapper` | `id.token.claim` |
+| Userinfo | `transformUserInfoAccessToken` (L823) | `UserInfoTokenMapper` | `userinfo.token.claim` (falls back to `id.token.claim`) |
+| Introspection | `transformIntrospectionAccessToken` (L834) | `TokenIntrospectionTokenMapper` | `introspection.token.claim` (falls back to `access.token.claim`, lightweight-unaware) |
+| AT response envelope | `transformAccessTokenResponse` (L811) | `OIDCAccessTokenResponseMapper` | `access.tokenResponse.claim` |
+
+Naming hazards worth pre-loading:
+
+- `TokenManager.transformUserInfoAccessToken` is the dispatcher; the leaf
+  interface method is `UserInfoTokenMapper.transformUserInfoToken`. Both names
+  exist; they live at different layers. Don't grep for the wrong one.
+- `AbstractOIDCProtocolMapper.java` lives at
+  `services/src/main/java/org/keycloak/protocol/oidc/mappers/` at this tag, not
+  at `server-spi-private/...`.
+
+## Routing — go to the right reference
+
+- **"What goes in / what comes out?"** → [references/inputs-and-outputs.md](references/inputs-and-outputs.md)
+- **"Why is/isn't scope X in `clientSessionCtx`?"** → [references/scope-resolution.md](references/scope-resolution.md)
+- **"Which mappers run, and in what order?"** → [references/mapper-set-assembly.md](references/mapper-set-assembly.md)
+- **"Where did `iss` / `sub` / `acr` / `scope` come from?"** → [references/base-claims.md](references/base-claims.md)
+- **"Did this mapper fire on this surface?"** → [references/mapper-execution.md](references/mapper-execution.md)
+- **"Why was `aud` rewritten after the mappers ran?"** → [references/post-mapper.md](references/post-mapper.md)
+- **"Where is this in the source?"** → [references/source-pointers.md](references/source-pointers.md)
+
+## Critical invariants the verifier must enforce
+
+These are the rules whose violation produces the most common false positives
+when validating a token against a mapper set. State them up front; the
+references back them up with line numbers.
+
+1. **`sub` is not always set by `initToken`.** `initToken` sets `sub` only for
+   *transient* user sessions (TokenManager.L992-994). For all other sessions,
+   `sub` is set later by `SubMapper`. A model that assumes `sub` is base-claim
+   territory will mispredict pairwise and transient cases.
+
+2. **The `scope` claim is not the requested scope param.** It is
+   `DefaultClientSessionContext.getScopeString()` — names of *allowed* client
+   scopes whose `isIncludeInTokenScope()` is true, with `openid` re-attached if
+   the original request was OIDC (DCSC.L188-212). The client itself is filtered
+   out (DCSC.L200). A scope with no `include.in.token.scope` attribute defaults
+   to **true**, not false (`ClientScopeModel.java:109-112`).
+
+3. **Lightweight access tokens use a different toggle.** When
+   `client.use.lightweight.access.token.enabled` is set or the session attribute
+   `USE_LIGHTWEIGHT_ACCESS_TOKEN_ENABLED` is set, mappers gate on
+   `lightweight.claim`, not `access.token.claim`. A mapper with
+   `access.token.claim=true` and `lightweight.claim=false` is **silently
+   skipped** on lightweight access tokens.
+
+4. **Introspection's fallback ignores lightweight.** When
+   `introspection.token.claim` is unset, the introspection toggle falls back to
+   `access.token.claim` — but it bypasses the lightweight branch. So a mapper
+   with `access.token.claim=true`, `lightweight.claim=false`,
+   `introspection.token.claim` unset is on for introspection regardless of
+   lightweight mode (`OIDCAttributeMapperHelper.L414-422`).
+
+5. **Userinfo's fallback uses `id.token.claim`, not `access.token.claim`.**
+   When `userinfo.token.claim` is unset, the userinfo toggle falls back to
+   `id.token.claim` (`OIDCAttributeMapperHelper.L403-411`). This is opposite of
+   what most engineers expect.
+
+6. **`fullScopeAllowed` short-circuits role intersection, not mapper dispatch.**
+   When `client.fullScopeAllowed=true`, `TokenManager.getAccess` (L605-609)
+   returns the user's full role set without intersecting with client-scope role
+   mappings. The *mapper set* is unaffected — it still comes from the allowed
+   client scopes. The role-driven mappers
+   (`UserRealmRoleMappingMapper`, `UserClientRoleMappingMapper`,
+   `AudienceResolveProtocolMapper`) then have a larger or smaller input
+   depending on this flag, which is what produces the empirical token-body
+   diff between `test-client` and `test-client-restricted` in the fixtures.
+
+7. **ID-token base claims are sourced from the *already-transformed* access
+   token**, except for `sub`, `aud`, and `iat` which are reset
+   (TokenManager.L1268-1276). Mapper mutations of the access token are
+   inherited by the ID token unless an ID-token mapper rewrites them.
+
+8. **`restrictRequestedAudience` runs after the access-token mappers.** If
+   `Constants.REQUESTED_AUDIENCE_CLIENTS` is set on the session ctx (token
+   exchange / requested-audience refresh), `aud` and `resource_access` are
+   pruned post-mapper (TokenManager.L802-807, L1406). Verifying mapper output
+   without applying this prune will over-report `aud` for those flows.
+
+9. **`at_hash`, `c_hash`, `s_hash` are out of model.** They are computed over
+   the encoded JWS, not over the claims map (TokenManager.L1338-1341, after
+   `session.tokens().encode(...)` at L1329). A claims-only verifier cannot
+   produce them; treat them as opaque.
+
+10. **Mapper sort ties are not deterministic.** `ProtocolMapperUtils.compare`
+    (L172-175) returns only priority. The upstream stream is a
+    `Set<ProtocolMapperModel>` (DCSC.L68, L325), so equal-priority mappers run
+    in `HashSet` iteration order. If two mappers write the same claim path,
+    require distinct priorities or flag the case as unverifiable.
+
+11. **Wire serialization drops null claims.** Token JSON is produced with
+    `JsonInclude.NON_NULL` (`core/.../util/JsonSerialization.java:48`). Any
+    claim left null in memory disappears from the wire. A mapper firing on a
+    surface is **not** the same as a non-null claim appearing in the JSON:
+    `UserPropertyMapper`, `UserAttributeMapper`, `UserSessionNoteMapper`, and
+    the role/audience mappers all no-op when their source value is null/empty,
+    producing absent claims even when the toggle gate passes. See
+    [references/inputs-and-outputs.md](references/inputs-and-outputs.md#wire-serialization--jsoninclude-non_null)
+    and [references/mapper-execution.md](references/mapper-execution.md#fires-is-not-writes-a-non-null-claim).
+
+12. **`sid` may be nulled post-`transformAccessToken` on the transient branch.**
+    `OAuth2GrantTypeBase.java:128-135` calls `accessToken.setSessionId(null)`
+    when the grant's `useRefreshToken()` returns false **and** the encoded
+    token id resolves to `AccessTokenContext.SessionType.TRANSIENT`. Both
+    conditions hold by default for `client_credentials` (controlled by client
+    attribute `client_credentials.use_refresh_token`,
+    `OIDCConfigAttributes.java:77`); they don't fire for
+    `authorization_code`, `password`, or `refresh_token`. The null then propagates to id_token
+    `sid` via `idToken.setSessionId(accessToken.getSessionId())` at
+    TokenManager.L1275/L1290. NON_NULL drops it from the wire. A `jti`
+    prefix of `trrtcc:` indicates the transient branch; `onrtcc:` /
+    `oftcc:` indicate persistent sessions where `sid` is retained. Sibling
+    call sites: `StandardTokenExchangeProvider.L280`,
+    `V1TokenExchangeProvider.L348`, `AuthorizationTokenService.L369`. See
+    [references/post-mapper.md](references/post-mapper.md#access-token-transient-session-sid-nulling).
+
+## When to consult fixtures
+
+The `fixtures/` directory ships eight `(request, log, token)` triples — four on
+`test-client` (`fullScopeAllowed=true`), three on `test-client-restricted`
+(`fullScopeAllowed=false`), and one positive control captured with
+`client_credentials.use_refresh_token=true` to exercise the persistent-session
+branch (`with-refresh-openid`). Use them as ground truth when a behavioral
+question has no clean source-only answer. The empirical token-body diff for
+invariant 6 is in `token-default-scopes.json` vs
+`token-restricted-default-scopes.json`. The empirical anchor for invariant 12
+is `token-openid.json` (transient, `sid` absent, `jti` prefix `trrtcc:`) vs
+`token-with-refresh-openid.json` (persistent, `sid` populated, prefix
+`onrtcc:`). Mapper internals are not logged at any level — token bodies are
+the authoritative output.

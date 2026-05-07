@@ -1,0 +1,35 @@
+{
+  "exp": 1778137772,
+  "iat": 1778137472,
+  "jti": "onrtro:55848206-31f0-dc80-8086-12ac85cb7e91",
+  "iss": "http://localhost:8080/realms/adv-3",
+  "aud": "account",
+  "sub": "8b7de4f3-0c23-4a15-b2e5-32450b0fbc42",
+  "typ": "Bearer",
+  "azp": "adv3-client",
+  "sid": "47kTGgur5MzdlPXrEmc5vbyE",
+  "acr": "1",
+  "realm_access": {
+    "roles": [
+      "offline_access",
+      "uma_authorization",
+      "default-roles-adv-3"
+    ]
+  },
+  "resource_access": {
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "openid profile email",
+  "email_verified": true,
+  "name": "Adv3 User",
+  "preferred_username": "adv3-user",
+  "given_name": "Adv3",
+  "family_name": "User",
+  "email": "adv3-user@example.invalid"
+}

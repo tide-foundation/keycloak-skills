@@ -1,0 +1,24 @@
+{
+  "exp": 1778121369,
+  "iat": 1778121069,
+  "jti": "trrtcc:5574c2fa-2e70-977d-671d-7dc275c9b220",
+  "iss": "http://localhost:8080/realms/myrealm",
+  "sub": "758b22cc-0c2c-4581-be47-1465924cee84",
+  "typ": "Bearer",
+  "azp": "test-client-restricted",
+  "acr": "1",
+  "allowed-origins": [
+    "http://localhost:8080"
+  ],
+  "realm_access": {
+    "roles": [
+      "offline_access"
+    ]
+  },
+  "scope": "openid email profile offline_access",
+  "clientHost": "172.20.0.1",
+  "email_verified": false,
+  "preferred_username": "service-account-test-client-restricted",
+  "clientAddress": "172.20.0.1",
+  "client_id": "test-client-restricted"
+}

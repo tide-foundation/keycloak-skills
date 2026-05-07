@@ -1,0 +1,14 @@
+2026-05-07 05:29:23,667 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Loa level when authenticated to client adv1-client: -1
+2026-05-07 05:29:23,667 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Level sent in the token to client adv1-client: 1. Original loa from the authentication: 1
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'roles' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'basic' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'adv1-scope-alpha' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'null' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'web-origins' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'profile' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'email' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'adv1-scope-zulu' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-1) Adding client scope role mappings of client scope 'acr' to client 'adv1-client'
+2026-05-07 05:29:23,668 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Loa level when authenticated to client adv1-client: -1
+2026-05-07 05:29:23,669 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-1) Level sent in the token to client adv1-client: 1. Original loa from the authentication: 1
+2026-05-07 05:29:23,673 INFO  [org.keycloak.events] (executor-thread-1) type="LOGIN", realmId="3d12969f-b99f-43b7-9314-bd3947f282d2", realmName="adv-1", clientId="adv1-client", userId="e3b169a1-c785-4693-a08e-6926cd3e4cf1", sessionId="SN4APqI6Iw-7QsHgi-5aKZLf", ipAddress="172.20.0.1", auth_method="openid-connect", token_id="onrtro:98211eda-1e6b-d3d0-ad34-f0c95a199939", grant_type="password", refresh_token_type="Refresh", scope="openid profile email", refresh_token_id="2916a8c1-bf63-6edd-d1a1-61e1c7df4051", client_auth_method="client-secret", username="adv1-user-collision", authSessionParentId="SN4APqI6Iw-7QsHgi-5aKZLf", authSessionTabId="wr-YoiI9vec"

@@ -1,0 +1,18 @@
+{
+  "exp": 1778137585,
+  "iat": 1778137285,
+  "jti": "onrtro:1f16b7ab-37c5-73d9-e449-5727e2f0fcd4",
+  "iss": "http://localhost:8080/realms/adv-2",
+  "sub": "c65fc05d-e10e-4daf-a3b0-315eaa5c0b72",
+  "typ": "Bearer",
+  "azp": "adv2-client",
+  "sid": "m2yOuScdwv7myjtDYc0mIEAr",
+  "acr": "1",
+  "scope": "openid adv2-scope-attr-true adv2-client email adv2-scope-attr-unset profile",
+  "email_verified": true,
+  "name": "Adv2 Scope",
+  "preferred_username": "adv2-user",
+  "given_name": "Adv2",
+  "family_name": "Scope",
+  "email": "adv2-user@example.invalid"
+}

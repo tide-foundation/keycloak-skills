@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.5
+    container_name: keycloak
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HEALTH_ENABLED: "true"
+      # Root stays at INFO; specific categories raised so the post-auth token
+      # construction flow becomes visible. Without this, the captured log
+      # fixtures are empty (see research-notes.md §5 item 1).
+      #   - TokenManager: scope/role expansion (tracef calls in getAccess,
+      #     isValidScope) — covers research-notes §5 item 9.
+      #   - DefaultClientSessionContext: scope filtering, user permission,
+      #     allowed-scope decisions — covers research-notes §5 items 9, 10.
+      #   - org.keycloak.events at debug: surfaces successful CLIENT_LOGIN /
+      #     TOKEN_REFRESH events, not just the WARN-level error case.
+      KC_LOG_LEVEL: "INFO,org.keycloak.protocol.oidc.TokenManager:trace,org.keycloak.services.util.DefaultClientSessionContext:trace,org.keycloak.events:debug"
+      # Make the jboss-logging events listener emit successful events at INFO
+      # (default for success is debug, which is below the events category's
+      # default level). Pairs with the events:debug above to ensure both
+      # success and error events reach the captured log.
+      KC_SPI_EVENTS_LISTENER_JBOSS_LOGGING_SUCCESS_LEVEL: info
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
