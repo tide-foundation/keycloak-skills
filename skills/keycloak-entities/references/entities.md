@@ -113,7 +113,7 @@ Common JPQL:
 |---|---|---|---|---|
 | `keycloak_group` | `GroupEntity` | id | realm_id → realm.id, parent_group → keycloak_group.id (self-FK) | Hierarchical groups |
 | `group_attribute` | `GroupAttributeEntity` | id (simple) | group_id → keycloak_group.id | Custom group attributes (multi-valued) |
-| `group_role_mapping` | `GroupRoleMappingEntity` | (group_id, role_id) | both | Group → role assignments (members inherit) |
+| `group_role_mapping` | `GroupRoleMappingEntity` | (role_id, group_id) | both | Group → role assignments (members inherit) |
 
 **Top-level groups**: `parent_group = ' '` (single space). `GroupEntity.TOP_PARENT_ID = " "`. Queries for top-level groups need `WHERE parent_group = ' '` — NULL won't match.
 
@@ -309,7 +309,7 @@ When users come from external storage their per-user data is in `fed_*` tables w
 | `fed_user_attribute` | `FederatedUserAttributeEntity` | id (simple) | (no FKs) | Federated user attributes |
 | `fed_user_credential` | `FederatedUserCredentialEntity` | id | (no FKs) | Federated user credentials |
 | `fed_user_consent` | `FederatedUserConsentEntity` | id | (no FKs; realm_id is a varchar column) | OAuth2 consents |
-| `fed_user_consent_cl_scope` | (no entity) | (user_consent_id, scope_id) | user_consent_id → fed_user_consent.id | Scopes in fed consent |
+| `fed_user_consent_cl_scope` | `FederatedUserConsentClientScopeEntity` | (user_consent_id, scope_id) | user_consent_id → fed_user_consent.id | Scopes in fed consent |
 | `fed_user_group_membership` | `FederatedUserGroupMembershipEntity` | (group_id, user_id) | (no FKs; group_id and realm_id are varchar columns) | Federated user → group |
 | `fed_user_required_action` | `FederatedUserRequiredActionEntity` | (required_action, user_id) | (no FKs) | Pending actions |
 | `fed_user_role_mapping` | `FederatedUserRoleMappingEntity` | (role_id, user_id) | (no FKs; role_id and realm_id are varchar columns) | Federated user → role |
