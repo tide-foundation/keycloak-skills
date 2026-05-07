@@ -141,7 +141,7 @@ Keycloak's data model uses 7 recurring patterns. Recognizing them speeds up read
 - A `parent_*` column references the same table's `id`
 - `keycloak_group.parent_group` (top = `' '` single space, NOT null)
 - `component.parent_id`
-- `authentication_execution.parent_flow`
+- `authentication_execution.flow_id` → `authentication_flow.id` (the parent flow); when `authenticator_flow = true`, also `authentication_execution.auth_flow_id` → the invoked sub-flow
 
 ### Pattern 6: Federated mirror (no FK)
 - Tables prefixed `fed_*` for users in external storage
@@ -290,10 +290,10 @@ Keycloak relies on a mix of DB-level FK cascades AND application-level cleanup.
 | `user_entity` | `user_attribute`, `user_role_mapping`, `user_group_membership`, `credential`, `user_required_action`, `user_consent`, `federated_identity` |
 | `keycloak_role` | `user_role_mapping`, `group_role_mapping`, `composite_role` (both as parent and child), `role_attribute`, `client_scope_role_mapping` |
 | `keycloak_group` | `group_attribute`, `user_group_membership`, `group_role_mapping`, `keycloak_group` (children recursively), `realm_default_groups` |
-| `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, Authorization Services data |
+| `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope` |
 | `component` | `component_config`, child `component` rows recursively |
-| `authentication_flow` | `authentication_execution` (where flow_id or parent_flow matches) |
+| `authentication_flow` | `authentication_execution` (where `flow_id` or `auth_flow_id` matches) |
 | `identity_provider` | `identity_provider_config`, `identity_provider_mapper`, `idp_mapper_config` |
 | `resource_server` | All Authorization Services data (resources, scopes, policies, perm tickets) |
 
@@ -331,7 +331,7 @@ Audit log preservation: `event_entity` and `admin_event_entity` deliberately hav
 | Composite role children | `composite_role` WHERE `composite = ?` |
 | Composite role parents | `composite_role` WHERE `child_role = ?` |
 | Identity providers | `identity_provider` + `identity_provider_config` |
-| Auth flows | `authentication_flow` + `authentication_execution` (hierarchical via `parent_flow`) |
+| Auth flows | `authentication_flow` + `authentication_execution` (hierarchical via `flow_id`; sub-flow link via `auth_flow_id` when `authenticator_flow = true`) |
 | User storage providers (LDAP) | `component` WHERE `provider_type = 'org.keycloak.storage.UserStorageProvider'` + `component_config` |
 | Realm key providers | `component` WHERE `provider_type = 'org.keycloak.keys.KeyProvider'` |
 | Authorization Services | See `references/authorization-services.md` |

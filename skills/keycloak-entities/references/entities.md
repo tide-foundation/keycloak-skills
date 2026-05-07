@@ -240,13 +240,18 @@ A naive query like `SELECT * FROM keycloak_group WHERE realm_id = ?` returns **b
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
 | `authentication_flow` | `AuthenticationFlowEntity` | id | realm_id → realm.id | A flow (browser, direct grant, etc.) |
-| `authentication_execution` | `AuthenticationExecutionEntity` | id | flow_id → authentication_flow.id, parent_flow → authentication_flow.id, realm_id → realm.id | Step in a flow (hierarchical) |
+| `authentication_execution` | `AuthenticationExecutionEntity` | id | flow_id → authentication_flow.id (the parent flow), auth_flow_id → authentication_flow.id (sub-flow this execution invokes when `authenticator_flow = true`), realm_id → realm.id | Step in a flow (hierarchical) |
 | `authenticator_config` | `AuthenticatorConfigEntity` | id | realm_id → realm.id | Reusable authenticator config |
 | `authenticator_config_entry` | (no entity) | (authenticator_id, name) | authenticator_id → authenticator_config.id | Config entries |
 | `required_action_provider` | `RequiredActionProviderEntity` | id | realm_id → realm.id | Required action definition |
 | `required_action_config` | (no entity) | (required_action_id, name) | required_action_id → required_action_provider.id | Per-action config |
 
-**Flow structure**: a flow is a tree of executions. Each execution is either an authenticator OR a sub-flow (which itself is an `authentication_flow` row). Hierarchy via `authentication_execution.parent_flow`.
+**Flow structure**: a flow is a tree of executions. Each execution is either an authenticator OR a sub-flow.
+
+- `authentication_execution.flow_id` — the flow this execution belongs to (always set; the immediate parent in the tree).
+- `authentication_execution.auth_flow_id` — set when `authenticator_flow = true`. Points to the `authentication_flow` row this execution invokes as a sub-flow. The sub-flow itself has its own executions whose `flow_id` references it.
+
+There is **no `parent_flow` column**. Older skill writeups sometimes claim one; the actual hierarchy is two columns: `flow_id` (which flow am I in?) and `auth_flow_id` (which flow do I invoke, if any?).
 
 **Execution requirements**: `REQUIRED`, `ALTERNATIVE`, `OPTIONAL`, `DISABLED`, `CONDITIONAL`.
 
@@ -460,10 +465,10 @@ Authoritative list at Keycloak 26.5.5. Verify against the entity class before re
 | `user_entity` | `user_attribute`, `user_role_mapping`, `user_group_membership`, `credential`, `user_required_action`, `user_consent` (+ `user_consent_client_scope`), `federated_identity` |
 | `keycloak_role` | `user_role_mapping`, `group_role_mapping`, `composite_role` (parent and child), `role_attribute`, `client_scope_role_mapping` |
 | `keycloak_group` | `group_attribute`, `user_group_membership`, `group_role_mapping`, `keycloak_group` (children recursively), `realm_default_groups` |
-| `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_node_registrations`, `client_auth_flow_bindings`, Authorization Services data |
+| `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_node_registrations`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope`, consent scope rows |
 | `component` | `component_config`, child `component` rows recursively |
-| `authentication_flow` | `authentication_execution` (where flow_id or parent_flow matches) |
+| `authentication_flow` | `authentication_execution` (where `flow_id` or `auth_flow_id` matches) |
 | `identity_provider` | `identity_provider_config`, `identity_provider_mapper`, `idp_mapper_config` |
 
 **Implication for extensions**: if you intercept delete on a parent and want to defer it, you must also block the cascade. Either intercept at REST layer (return 409) OR throw in your `*Provider.removeX()` to roll back the transaction.
