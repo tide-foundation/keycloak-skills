@@ -225,6 +225,10 @@ A naive query like `SELECT * FROM keycloak_group WHERE realm_id = ?` returns **b
 
 **`provider_id` vs `internal_id`**: `provider_id` is the implementation type (`oidc`, `saml`, `google`); `internal_id` is the row's UUID.
 
+**KC 26.0+ columns**:
+- `HIDE_ON_LOGIN` (BOOLEAN, default false) — when true, the IdP is configured but does not render on the login screen. Replaces the older `HIDE_ON_LOGIN_PAGE` config-key approach.
+- `ORGANIZATION_ID` (VARCHAR(255)) — when set, scopes the IdP to a specific organization (multi-tenancy). Indexed via `IDX_IDP_REALM_ORG`. NULL means realm-wide.
+
 **`federated_identity` is unidirectional**: local user → external user. Reverse lookup uses `getUserByFederatedIdentity()`.
 
 **`identity_provider` columns**: `provider_alias`, `provider_id`, `enabled`, `trust_email`, `store_token`, `add_token_role`, `authenticate_by_default`, `link_only`, `first_broker_login_flow_id`, `post_broker_login_flow_id`.
@@ -283,6 +287,8 @@ component (LDAP, parent_id = realm.id)
 **Config is multi-valued**: same `name` can have multiple rows in `component_config`. Use `MultivaluedHashMap` via `ComponentModel.getConfig()`.
 
 **`ComponentEntity` doesn't expose config map**: use `RealmModel.getComponentsStream(...)` and `ComponentModel.getConfig()` — the model layer joins.
+
+**Long-value spillover (KC 23+)**: `component_config.value` is `VARCHAR(255)`. Larger values land in `VALUE_NEW NCLOB` (added 23.0.0). The model API reads from both; raw SQL needs to coalesce.
 
 ---
 
@@ -351,6 +357,12 @@ user.grantRole(role);  // writes to fed_user_role_mapping if user is federated
 
 **`realm_id` is `VARCHAR(255)`** — different width from most realm_id columns.
 
+**Long-value spillover columns**:
+- `EVENT_ENTITY.DETAILS_JSON_LONG_VALUE NCLOB` (added 23.0.0) — overflow when `DETAILS_JSON VARCHAR(2550)` is too small.
+- `ADMIN_EVENT_ENTITY.DETAILS_JSON NCLOB` (added 26.1.0) — admin events did not previously have a details column at all.
+
+Read both columns when querying event details on KC 23+/26.1+ — either may hold the actual payload.
+
 ---
 
 ## 15. Sessions
@@ -362,6 +374,11 @@ user.grantRole(role);  // writes to fed_user_role_mapping if user is federated
 | `revoked_token` | `RevokedTokenEntity` | id (varchar(255)) | (no FK) | Token blacklist (KC 26.0+) |
 
 **5-column PK on `offline_client_session`** since 4.0.0 (was 2-column before). The extra `client_storage_provider` and `external_client_id` columns let federated clients (LDAP-stored) coexist with realm clients without ID collision.
+
+**Recent column additions on `offline_user_session`**:
+- `BROKER_SESSION_ID VARCHAR(1024)` (25.0.0) — links the offline session to the upstream IdP session for SLO propagation.
+- `VERSION INT` (25.0.0, also on `offline_client_session`) — JPA `@Version` optimistic-lock counter; concurrent updates throw `OptimisticLockException`.
+- `REMEMBER_ME BOOLEAN` (26.5.0) — set when the offline session was created from a "remember me" login. Naive cleanup queries that don't preserve this on rotation will lose the persistence flag.
 
 **Removed in Keycloak 26.0**: `user_session`, `user_session_note`, `client_session`, `client_session_role`, `client_session_note`, `client_session_prot_mapper`, `client_session_auth_status`, `client_user_session_note`. These are now Infinispan-only. If you query them on 26+ you'll get nothing or table-not-found.
 

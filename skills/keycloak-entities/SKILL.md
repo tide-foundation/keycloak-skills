@@ -220,8 +220,14 @@ Optional — only populated if event listeners enabled. No FKs to other domain t
 "SELECT e FROM UserAttributeEntity e WHERE e.userId = :uid"
 ```
 
-### 13. `LONG_VALUE` quirk on user/fed user attributes
-`user_attribute.value` is `VARCHAR(255)`. Longer values spill into `LONG_VALUE` (CLOB). Querying just `VALUE` will miss long attribute values. Use the entity's `getValue()` getter or join with `LONG_VALUE`.
+### 13. `LONG_VALUE` and the hash index columns on user/fed user attributes (KC 24+)
+`user_attribute.value` is `VARCHAR(255)`. Longer values spill into `LONG_VALUE` (NCLOB, added 24.0.0). Querying just `VALUE` will miss long attribute values. Use the entity's `getValue()` getter or join with `LONG_VALUE`.
+
+KC 24.0.0 also added two hash index columns to support indexed search of long values:
+- `LONG_VALUE_HASH BINARY(64)` — SHA-256 of the long value, case-sensitive
+- `LONG_VALUE_HASH_LOWER_CASE BINARY(64)` — SHA-256 of the lowercased long value, for case-insensitive search
+
+Custom JPQL searching by long-value content should compute the hash on the input and match the appropriate hash column rather than full-scanning the NCLOB. The same three columns exist on `FED_USER_ATTRIBUTE`.
 
 ### 14. `fed_user_*` tables have no FKs
 Federated users live outside Keycloak's `user_entity`. Tables denormalize with `user_id + realm_id + storage_provider_id` columns. No referential integrity to the external store.
@@ -257,15 +263,20 @@ if ("master".equals(realm.getName())) return;
 
 For those entities, use the model API (`realm.getComponentsStream(...)`, `realm.getIdentityProvidersStream()`, etc.) or write inline JPQL / Criteria against the entity directly. See [references/entities.md](./references/entities.md) for the authoritative list of named queries per entity.
 
-### 20. `keycloak_group.type` separates regular groups from organizations (KC 26.0+)
-Since 26.0.0, `KEYCLOAK_GROUP` has a `TYPE INT NOT NULL` column. Values come from `GroupModel.Type`:
+### 20. `keycloak_group.type` and `user_group_membership.membership_type` separate regular groups from organizations (KC 26.0+)
+Since 26.0.0, two related columns were added to support organizations:
 
+**`KEYCLOAK_GROUP.TYPE` (INT NOT NULL, default 0)** — values from `GroupModel.Type`:
 - `0` = `REALM` — regular group
 - `1` = `ORGANIZATION` — backs an organization (referenced from `org.group_id`)
 
-A bare `SELECT ... FROM keycloak_group WHERE realm_id = ?` returns **both kinds**, and org-groups also appear in `user_group_membership` for org members. This is a silent correctness bug for naive queries.
+**`USER_GROUP_MEMBERSHIP.MEMBERSHIP_TYPE` (VARCHAR)** — values from `org.keycloak.representations.idm.MembershipType`:
+- `UNMANAGED` — member can exist without the group/org (default for regular groups)
+- `MANAGED` — member cannot exist without the group/org (typical for org memberships)
 
-Filter on `TYPE = 0` for regular groups, or use `JpaRealmProvider.getGroupsStream(realm)` which adds the type predicate automatically. The named queries `getGroupsByMember` / `getGroupsByFederatedMember` filter on `type = 1` to enumerate a user's organizations.
+A bare `SELECT ... FROM keycloak_group WHERE realm_id = ?` returns **both kinds** of groups, and org-backed memberships appear in `user_group_membership` alongside regular memberships. Naive queries silently include organizations.
+
+Filter on `keycloak_group.type = 0` for regular groups, or use `JpaRealmProvider.getGroupsStream(realm)` which adds the type predicate automatically. The named queries `getGroupsByMember` / `getGroupsByFederatedMember` filter on `g.type = 1` to enumerate a user's organizations. For membership semantics, `MANAGED` rows imply the user lifecycle is tied to the parent org.
 
 ---
 
