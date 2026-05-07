@@ -11,7 +11,7 @@ Version pinning: see `../SKILL.md`.
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
 | `realm` | `RealmEntity` | id | master_admin_client → client.id | The realm itself; columns hold most realm config (name, theme, password policy, token lifetimes, etc.) |
-| `realm_attribute` | `RealmAttributeEntity` | (realm_id, name) | realm_id → realm.id | Custom realm attributes (single-valued extensibility) |
+| `realm_attribute` | `RealmAttributeEntity` | (name, realm_id) | realm_id → realm.id | Custom realm attributes (single-valued extensibility) |
 | `realm_smtp_config` | (no entity) | (realm_id, name) | realm_id → realm.id | SMTP server configuration |
 | `realm_required_credential` | `RequiredCredentialEntity` | (realm_id, type) | realm_id → realm.id | Required credential types (password, OTP) |
 | `realm_events_listeners` | (no entity) | (realm_id, value) | realm_id → realm.id | Enabled event listener IDs |
@@ -34,7 +34,7 @@ Version pinning: see `../SKILL.md`.
 |---|---|---|---|---|
 | `user_entity` | `UserEntity` | id | realm_id → realm.id | A user account |
 | `user_attribute` | `UserAttributeEntity` | id (simple) | user_id → user_entity.id | Custom user attributes (multi-valued) |
-| `user_required_action` | `UserRequiredActionEntity` | (action, user_id) | user_id → user_entity.id | Pending required actions |
+| `user_required_action` | `UserRequiredActionEntity` | (required_action, user_id) | user_id → user_entity.id | Pending required actions. The original `ACTION` column was dropped in KC 1.3.0 and replaced by `REQUIRED_ACTION VARCHAR(255)`. |
 | `user_role_mapping` | `UserRoleMappingEntity` | (role_id, user_id) | user_id → user_entity.id, role_id → keycloak_role.id | User → role assignments |
 | `user_group_membership` | `UserGroupMembershipEntity` | (group_id, user_id) | user_id → user_entity.id, group_id → keycloak_group.id | User → group memberships. `membership_type` column (KC 26+) is not part of the PK; see gotcha #20 in SKILL.md. |
 | `user_consent` | `UserConsentEntity` | id | user_id → user_entity.id, client_id → client.id | OAuth2 consent grants |
@@ -220,7 +220,7 @@ A naive query like `SELECT * FROM keycloak_group WHERE realm_id = ?` returns **b
 | `identity_provider_config` | (no entity) | (identity_provider_id, name) | identity_provider_id → identity_provider.internal_id | IDP config (URLs, secrets) |
 | `identity_provider_mapper` | `IdentityProviderMapperEntity` | id | realm_id → realm.id | Maps IDP claims to Keycloak attributes/roles |
 | `idp_mapper_config` | (no entity) | (idp_mapper_id, name) | idp_mapper_id → identity_provider_mapper.id | Mapper config |
-| `federated_identity` | `FederatedIdentityEntity` | (user_id, identity_provider) | user_id → user_entity.id, realm_id → realm.id | Link between local user and external IDP user |
+| `federated_identity` | `FederatedIdentityEntity` | (identity_provider, user_id) | user_id → user_entity.id, realm_id → realm.id | Link between local user and external IDP user |
 
 **Lookup by `provider_alias`, NOT `internal_id`**: humans configure aliases (`google`, `okta`); internal_id is opaque.
 
@@ -450,7 +450,7 @@ Authoritative list at Keycloak 26.5.5. Verify against the entity class before re
 | `RoleEntity` | `getRealmRoleByName`, `getRealmRoleIdByName`, `getClientRoleByName`, `getClientRoleIdByName`, `getRealmRoles`, `getClientRoles`, `getRealmRoleIds`, `getClientRoleIds`, `getRoleIdsFromIdList`, `getRoleIdsByNameContainingFromIdList`, `getChildRoles`, `searchForRealmRoles`, `searchForClientRoles` |
 | `GroupEntity` | `getGroupIdsByParent`, `deleteGroupsByRealm` (no `getTopLevelGroups` — filter on `parentId = ' '` or use `JpaRealmProvider.getTopLevelGroupsStream`) |
 | `ClientEntity` | `getClientById`, `findClientByClientId`, `findClientIdByClientId`, `getAllRedirectUrisOfEnabledClients`, `getAlwaysDisplayInConsoleClients` |
-| `ClientScopeEntity` | `getClientScopeIds` |
+| `ClientScopeEntity` | `getClientScopeIds`, `getClientScopesByProtocol` |
 | `CredentialEntity` | `credentialByUser`, `deleteCredentialsByRealm`, `deleteCredentialsByRealmAndLink` |
 | `RealmEntity` | `getAllRealmIds`, `getRealmIdByName`, `getRealmIdsWithNameContaining`, `getRealmIdsWithProviderType` |
 | `MigrationModelEntity` | (defines schema-version queries — see the class) |
@@ -479,8 +479,8 @@ Authoritative list at Keycloak 26.5.5. Verify against the entity class before re
 | `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_node_registrations`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope`, consent scope rows |
 | `component` | `component_config`, child `component` rows recursively |
-| `authentication_flow` | `authentication_execution` (where `flow_id` matches — JPA cascade). Deletion is **blocked** by `KeycloakModelUtils.isFlowUsed` when any execution references this flow via `auth_flow_id` (used as a sub-flow elsewhere); the operation throws `ModelException("Cannot remove authentication flow, it is currently in use")` instead of cascading. |
-| `identity_provider` | `identity_provider_config` (JPA `@ElementCollection`), `identity_provider_mapper` + `idp_mapper_config` (provider-level via `getMappersByAliasStream`). **Not cascaded**: `federated_identity` rows referencing this IDP persist (the `IDENTITY_PROVIDER` column is a plain `VARCHAR(255)` alias, no FK; this is intentional so an IDP re-created with the same alias resumes existing user linkages). |
+| `authentication_flow` | `authentication_execution` (where `flow_id` matches — JPA cascade). Deletion is **blocked** by `KeycloakModelUtils.isFlowUsed` when the flow is bound at realm level (any of `browser`, `registration`, `direct_grant`, `reset_credentials`, `client_authentication`, `docker_authentication`, `first_broker_login`), per-client (`client_auth_flow_bindings` for `browser` / `direct_grant`), or as an IDP `first_broker_login_flow_id` OR `post_broker_login_flow_id` (both matched by `JpaIdentityProviderStorageProvider.getByFlow`). Sub-flow references via `auth_flow_id` are not part of `isFlowUsed`. Block throws `ModelException("Cannot remove authentication flow, it is currently in use")`. |
+| `identity_provider` | `identity_provider_config` (JPA `@ElementCollection`), `identity_provider_mapper` + `idp_mapper_config` (provider-level via `getMappersByAliasStream`), `federated_identity` rows referencing this IDP (cleaned via `JpaUserProvider.preRemove(realm, IdentityProviderModel)` → `deleteFederatedIdentityByProvider` named query, matched on alias). The `FEDERATED_IDENTITY.IDENTITY_PROVIDER` column is a plain `VARCHAR(255)` alias without an FK constraint, so this is application-level, not DB-level cascade. Re-creating an IDP with the same alias does NOT resume prior linkages. |
 
 **Implication for extensions**: if you intercept delete on a parent and want to defer it, you must also block the cascade. Either intercept at REST layer (return 409) OR throw in your `*Provider.removeX()` to roll back the transaction.
 

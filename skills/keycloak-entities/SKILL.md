@@ -236,9 +236,11 @@ Federated users live outside Keycloak's `user_entity`. Tables denormalize with `
 The `username_login_failure` table was **dropped in 26.1.0** (`<dropTable tableName="USERNAME_LOGIN_FAILURE"/>` in `jpa-changelog-26.1.0.xml`). Brute-force/login-failure state is now Infinispan-only — the same migration applied to live sessions in 26.0. The previous table was keyed by `(realm_id, username)` so tracking worked even before a matching user existed (defeating username enumeration); the in-memory replacement preserves that semantic but means raw SQL/JPQL can no longer read or mutate the state. Use `BruteForceProtector` (SPI) or the admin REST `/admin/realms/{realm}/attack-detection/brute-force/users/{user-id}` endpoints.
 
 ### 16. Composite PKs are `@IdClass`, not `@EmbeddedId`
-Each composite-PK entity has a public static inner `Key` class:
+Each composite-PK entity has a public static inner `Key` class. **The Key constructor signatures take entity references, not raw IDs**, mirroring the `@ManyToOne` field types on the entity itself. For example, `UserRoleMappingEntity.Key(UserEntity user, String roleId)` — the first arg is a `UserEntity`, not a `String userId`.
+
 ```java
-em.find(UserRoleMappingEntity.class, new UserRoleMappingEntity.Key(userId, roleId));
+UserEntity userRef = em.getReference(UserEntity.class, userId);
+em.find(UserRoleMappingEntity.class, new UserRoleMappingEntity.Key(userRef, roleId));
 ```
 
 ### 17. Relationship tables don't carry `realm_id`
@@ -293,8 +295,8 @@ Keycloak relies on a mix of DB-level FK cascades AND application-level cleanup.
 | `client` | `client_attributes`, `client_scope_client`, `protocol_mapper` (where client_id matches), `keycloak_role` (client roles), `redirect_uris`, `web_origins`, `client_auth_flow_bindings`, `user_consent` + `user_consent_client_scope` (via `JpaUserProvider.preRemove`), Authorization Services data |
 | `client_scope` | `client_scope_attributes`, `client_scope_client`, `client_scope_role_mapping`, `protocol_mapper` (where client_scope_id matches), `default_client_scope` |
 | `component` | `component_config`, child `component` rows recursively |
-| `authentication_flow` | `authentication_execution` (where `flow_id` matches — JPA cascade). **Removal blocked** by `KeycloakModelUtils.isFlowUsed` if any execution references this flow via `auth_flow_id` (i.e., it's invoked as a sub-flow elsewhere) — operation throws `ModelException("Cannot remove authentication flow, it is currently in use")` rather than cascading. |
-| `identity_provider` | `identity_provider_config` (JPA `@ElementCollection`), `identity_provider_mapper` + `idp_mapper_config` (provider-level via `getMappersByAliasStream`). **Not cascaded**: `federated_identity` rows referencing this IDP — its `IDENTITY_PROVIDER` column is a plain `VARCHAR(255)` alias with no FK constraint, so the rows persist (intentionally — re-creating an IDP with the same alias resumes linkage). |
+| `authentication_flow` | `authentication_execution` (where `flow_id` matches — JPA cascade). **Removal blocked** by `KeycloakModelUtils.isFlowUsed` when the flow is bound at any of: realm-level top flows (`browser`, `registration`, `direct_grant`, `reset_credentials`, `client_authentication`, `docker_authentication`, `first_broker_login`), per-client overrides (`browser` / `direct_grant` in `client_auth_flow_bindings`), or as an IDP `first_broker_login_flow_id` OR `post_broker_login_flow_id` (both columns are matched by `JpaIdentityProviderStorageProvider.getByFlow`). Sub-flow references via `auth_flow_id` from another flow's executions are NOT checked — those are eligible for cascade. The block throws `ModelException("Cannot remove authentication flow, it is currently in use")`. |
+| `identity_provider` | `identity_provider_config` (JPA `@ElementCollection`), `identity_provider_mapper` + `idp_mapper_config` (provider-level via `getMappersByAliasStream`), `federated_identity` rows referencing this IDP (cleaned via `JpaUserProvider.preRemove(realm, IdentityProviderModel)` → `deleteFederatedIdentityByProvider` named query, matched on alias). Note that `FEDERATED_IDENTITY.IDENTITY_PROVIDER` is a plain `VARCHAR(255)` alias column without an FK constraint, so the cleanup is application-level not DB-level. Re-creating an IDP with the same alias does NOT resume prior linkages — the rows are gone. |
 | `resource_server` | All Authorization Services data (resources, scopes, policies, perm tickets) |
 
 **Implication for extensions**: if you intercept delete on a parent and want to defer it for approval workflow, you must also block the cascade. Either intercept at the REST layer (return 409 before model.removeX runs), or throw an exception in your provider's removeX override (causes transaction rollback).
