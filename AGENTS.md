@@ -39,12 +39,27 @@ skills/<skill-name>/
 
 ```
 ---
-name: <skill-name>
-description: <one paragraph naming the symbols, tables, classes, and verbs the skill covers, ending with the verified Keycloak version>
+name: keycloak-some-topic
+description: |
+  One paragraph naming the symbols, tables, classes, and verbs the skill covers,
+  ending with the verified Keycloak version. Under 1024 characters.
+license: MIT
+compatibility: Requires Keycloak X.Y.x. Some claims version-specific (KC NN+).
+metadata:
+  author: Tide Foundation
+  version: 0.1.0
+  keycloak-version: X.Y.Z
 ---
 ```
 
 The `description` is what skill loaders match on when routing. List concrete symbols (`USER_ENTITY`, `JpaEntityProvider`, `KeycloakModelUtils`, etc.) so the loader picks the right skill.
+
+**Frontmatter rules** (per Anthropic's skill format):
+
+- `name` must be kebab-case, no spaces, no capitals, no `claude` or `anthropic` prefix.
+- `description` is required. Must include WHAT the skill does AND WHEN to use it. Under 1024 characters.
+- **No XML angle brackets (`<` or `>`) anywhere in frontmatter** — security restriction (frontmatter is loaded into Claude's system prompt). Use `[placeholder]` style instead.
+- `license`, `compatibility`, `metadata` are optional but recommended for this pack.
 
 ### Body shape
 
@@ -68,11 +83,17 @@ The `description` is what skill loaders match on when routing. List concrete sym
 
 ## Verification checklist before merging a skill
 
+- [ ] `SKILL.md` filename is exact (case-sensitive). Folder is kebab-case, prefixed `keycloak-`.
 - [ ] Frontmatter has `name` and a symbol-rich `description`.
+- [ ] Description is under 1024 characters and includes both WHAT and WHEN.
+- [ ] No `<` or `>` characters anywhere in frontmatter (use `[placeholder]` style).
+- [ ] Skill name does not start with `claude` or `anthropic` (reserved).
+- [ ] SKILL.md body is under ~5,000 words. Anything longer goes in `references/`.
 - [ ] Body declares the exact verified Keycloak version (e.g. "Verified against Keycloak 26.5.5").
 - [ ] Every named class, table, column, named query, and SPI is accurate at that version.
 - [ ] Auto-routing triggers cover the cases the SKILL.md does NOT inline.
 - [ ] At least one anti-pattern or common-failure note per major topic.
+- [ ] No `README.md` inside the skill folder (the repo-level README is the only one).
 
 ## Anti-patterns
 

@@ -12,6 +12,19 @@ Built and maintained by the [Tide Foundation](https://tide.org).
 
 More skills planned: SPI development, Admin REST API, themes, deployment, testing, OIDC/SAML protocols, admin UI extension.
 
+## Use with Claude.ai
+
+In Claude.ai, go to **Settings → Capabilities → Skills → Upload skill**, then upload the skill folder as a `.zip`.
+
+```bash
+git clone https://github.com/tide-foundation/keycloak-skills.git
+cd keycloak-skills/skills
+zip -r keycloak-entities.zip keycloak-entities
+# upload keycloak-entities.zip via the Claude.ai UI
+```
+
+Workspace admins can deploy skills organization-wide via the same surface.
+
 ## Use with Claude Code
 
 Clone and symlink each skill into your Claude Code skills directory:
@@ -31,9 +44,11 @@ mkdir -p .claude/skills
 ln -s ~/keycloak-skills/skills/keycloak-entities .claude/skills/keycloak-entities
 ```
 
-## Use with Claude.ai or the Claude API
+## Use with the Claude API
 
-Each `SKILL.md` is plain markdown. Paste the relevant `SKILL.md` (and any `references/*.md` its auto-routing points to) into your agent's system prompt.
+Skills are first-class on the Messages API. Manage them via the `/v1/skills` endpoint and attach via the `container.skills` parameter on a Messages request. Requires the Code Execution Tool beta. See Anthropic's [Skills API Quickstart](https://docs.anthropic.com).
+
+If you'd rather not use the skills API, paste the relevant `SKILL.md` (and any `references/*.md` its auto-routing points to) directly into your agent's system prompt.
 
 ## Use with Cursor / Codex / Aider / other AGENTS.md-aware tools
 

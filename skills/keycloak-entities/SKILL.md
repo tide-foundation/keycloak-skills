@@ -1,6 +1,12 @@
 ---
 name: keycloak-entities
 description: Use for any work touching Keycloak's database — writing JPQL or SQL against Keycloak entities, designing migrations, building extensions, debugging FK/cascade issues, or mapping Keycloak's domain model to its schema. Covers the Keycloak schema, ER diagram, entity classes, and migrations across ~90 tables including USER_ENTITY, KEYCLOAK_ROLE, KEYCLOAK_GROUP, CLIENT, USER_ROLE_MAPPING, USER_GROUP_MEMBERSHIP, COMPOSITE_ROLE, CLIENT_SCOPE_CLIENT, PROTOCOL_MAPPER, FEDERATED_IDENTITY, COMPONENT, fed_user_*, RESOURCE_SERVER, OFFLINE_USER_SESSION. Knows JpaEntityProvider, JPQL named queries, Liquibase changelogs, databasechangelog, KeycloakModelUtils, FK cascade behavior, attribute tables, federated user tables, UMA Authorization Services, and Keycloak migration patterns. Verified against Keycloak 26.5.5.
+license: MIT
+compatibility: Requires Keycloak 26.5.x. Some claims are version-specific (KC 25+, KC 26.0+, KC 26.2+, KC 26.3+).
+metadata:
+  author: Tide Foundation
+  version: 0.1.0
+  keycloak-version: 26.5.5
 ---
 
 # Keycloak Entities — Reference Skill

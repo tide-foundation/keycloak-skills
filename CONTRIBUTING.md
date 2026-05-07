@@ -16,6 +16,18 @@ Thanks for adding to the pack. This file is the procedural how-to. The writing r
 
 3. **Fill out `skills/<skill-name>/SKILL.md`** following the template's section order. The frontmatter `name` must match the directory name.
 
+   The template uses `__FILL__` markers for every spot that needs editing. To work through them:
+
+   ```bash
+   # See every placeholder you still need to replace, with line numbers
+   grep -n __FILL__ skills/<skill-name>/SKILL.md
+
+   # When this returns 0, every placeholder is gone
+   grep -c __FILL__ skills/<skill-name>/SKILL.md
+   ```
+
+   Delete the "This file is a template" banner near the top of the body before merging.
+
 4. **Verify every concrete claim** against the Keycloak version you are targeting. Class names, table names, column widths, named queries, SPI interfaces, and changelog IDs must match. Declare the exact version in the body.
 
 5. **Add deep-dive material to `references/`** only if it does not fit the ~80% rule. SKILL.md should answer the most common questions on its own; `references/*.md` are for the long tail. Add explicit auto-routing triggers in the SKILL.md so the agent reads the reference proactively.
@@ -28,23 +40,43 @@ Thanks for adding to the pack. This file is the procedural how-to. The writing r
 
 ```
 skills/<skill-name>/
-  SKILL.md           # required, with frontmatter
-  references/        # optional
+  SKILL.md           # required, exact case, with frontmatter
+  references/        # optional, deep-dive docs the agent loads on demand
     <topic>.md
+  scripts/           # optional, executable helpers (Python/Bash) the agent runs
+  assets/            # optional, templates/icons/etc. used in output
 ```
 
-Do not add other files (no `package.json`, no scripts, no images unless essential and lossless). Skills are pure markdown.
+Skills are markdown-first. Add `scripts/` only if a check is genuinely deterministic (e.g. validating a changelog XML), not just for tasks the agent can do in language. Don't add a `README.md` inside the skill folder — the repo-level [README.md](./README.md) is for human visitors; in-skill docs belong in `SKILL.md` or `references/`.
 
 ## Frontmatter
 
+Copy the scaffold from `skills/_template/SKILL.md` and fill it in. Required and optional fields:
+
 ```
 ---
-name: <skill-name>
-description: Use for <when>. Covers <symbols, tables, classes, verbs>. Verified against Keycloak <version>.
+name: keycloak-your-topic            # required, kebab-case, no capitals, no spaces
+description: |                       # required, under 1024 chars, NO < or > anywhere
+  Use for [when]. Covers [symbols, tables, classes, verbs].
+  Verified against Keycloak X.Y.Z.
+license: MIT                         # optional but recommended
+compatibility: Requires Keycloak X.Y.x.   # optional, 1-500 chars
+metadata:                            # optional, free-form key/value
+  author: Tide Foundation
+  version: 0.1.0
+  keycloak-version: X.Y.Z
 ---
 ```
 
 The `description` is matched by skill loaders and other agents to decide relevance. Pack it with the literal symbols a user would type — class names, table names, SPI interfaces, named queries. Vague descriptions don't get loaded.
+
+**Hard rules** (Anthropic's skill format):
+
+- No `<` or `>` characters anywhere in frontmatter (security: frontmatter goes into Claude's system prompt). Use `[placeholder]` style.
+- Description max 1024 characters.
+- Compatibility max 500 characters.
+- Skill name must not start with `claude` or `anthropic` (reserved).
+- No `README.md` file inside the skill folder. All in-skill docs go in `SKILL.md` or `references/`.
 
 ## Symbol accuracy
 
