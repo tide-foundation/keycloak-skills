@@ -55,7 +55,6 @@ Resources have URIs and types. Scopes are actions. Policies say things like "ali
 | Table | Entity | PK | FK | Purpose |
 |---|---|---|---|---|
 | `resource_scope` | (no entity) | (resource_id, scope_id) | both | What scopes apply to a resource |
-| `scope_resource` | (no entity) | (scope_id, resource_id) | both | Reverse of above (used by some queries) |
 | `resource_policy` | (no entity) | (resource_id, policy_id) | both | Policies guarding a resource |
 | `scope_policy` | (no entity) | (scope_id, policy_id) | both | Policies guarding a scope |
 
@@ -77,7 +76,7 @@ resource: /api/users/123
   └── scope: delete
 ```
 
-`resource_scope` links them. `scope_resource` is the reverse mapping (for query convenience).
+`resource_scope` is the only join table — there is no separate `scope_resource` reverse mapping; queries traverse the same table from either side.
 
 ---
 
@@ -127,18 +126,25 @@ Tickets are typically short-lived. UMA flow expects the requester to redeem them
 
 ## Common queries
 
-```java
-// All resources for a client
-client.resources().getResourcesStream();   // authorization model API
+Authorization data is reached through `AuthorizationProvider` and its `StoreFactory`. There is no `client.resources()` accessor on `ClientModel`.
 
-// Find a resource by URI
-client.resources().findByUri(uri);
+```java
+AuthorizationProvider authz = session.getProvider(AuthorizationProvider.class);
+StoreFactory stores = authz.getStoreFactory();
+
+// Resolve the ResourceServer for a client (one per client max)
+ResourceServer rs = stores.getResourceServerStore().findByClient(client);
+
+// All resources for that resource server
+List<Resource> resources = stores.getResourceStore().findByResourceServer(rs);
+
+// Find resources by URI (use the FilterOption map)
+Map<Resource.FilterOption, String[]> filters = new HashMap<>();
+filters.put(Resource.FilterOption.URI, new String[] { uri });
+List<Resource> byUri = stores.getResourceStore().find(rs, filters, null, null);
 
 // All policies on a resource
-session.getProvider(AuthorizationProvider.class)
-       .getStoreFactory()
-       .getPolicyStore()
-       .findByResource(resourceServer, resource);
+List<Policy> policies = stores.getPolicyStore().findByResource(rs, resource);
 ```
 
 ---

@@ -190,7 +190,9 @@ Setter behavior:
 Some realm settings are columns on `realm` (name, enabled, password_policy, ssl_required). Others are in `realm_attribute` rows. Model API `realm.getAttribute(name)` reads from the attribute table; column-backed settings have dedicated getters.
 
 ### 8. The `default-roles-<realm>` role
-Every realm has an auto-generated composite role named `default-roles-<realmName>` containing all realm-default + client-default roles. Granted to all users by default. Composite expansion delivers the defaults.
+Every realm has an auto-generated composite role containing all realm-default + client-default roles. Granted to all users by default. Composite expansion delivers the defaults.
+
+**The realm name is lowercased** in the role name: `Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName().toLowerCase()`. So a realm `"MyRealm"` has role `default-roles-myrealm`, not `default-roles-MyRealm`. Querying by the raw realm name will miss.
 
 ### 9. Service-account users
 When `client.service_accounts_enabled = true`, Keycloak creates a system user with `username = "service-account-<clientId>"` and `service_account_client_link = <client_id>`. They behave like regular users for role-mapping.
