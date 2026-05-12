@@ -5,6 +5,8 @@ description: Reference for Keycloak 26.5.5 OIDC token construction — scope res
 
 # Keycloak post-authentication token construction (26.5.5)
 
+> **All source paths cited in this skill (here and in `references/`) are remote URLs at [github.com/keycloak/keycloak](https://github.com/keycloak/keycloak) tag `26.5.5` — they are NOT files in this working directory.** Do not attempt to read them from the local filesystem. Use `WebFetch` if you need to inspect them; otherwise rely on the line numbers cited inline. Shorthand forms like `TokenManager.L605`, `DCSC.L188-212`, or `OAuth2GrantTypeBase.java:128-135` all refer to the same upstream Java sources. Full path → URL mapping is in [references/source-pointers.md](references/source-pointers.md).
+
 Pinned tag: **26.5.5**. Every line number cited here and in the references is at
 that tag. Out-of-scope: authentication, grant-type validation, session
 establishment, signing, hash claims (`at_hash`, `c_hash`, `s_hash`).
@@ -65,7 +67,7 @@ Naming hazards worth pre-loading:
   interface method is `UserInfoTokenMapper.transformUserInfoToken`. Both names
   exist; they live at different layers. Don't grep for the wrong one.
 - `AbstractOIDCProtocolMapper.java` lives at
-  `services/src/main/java/org/keycloak/protocol/oidc/mappers/` at this tag, not
+  [`services/src/main/java/org/keycloak/protocol/oidc/mappers/`](https://github.com/keycloak/keycloak/tree/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers) at this tag, not
   at `server-spi-private/...`.
 
 ## Routing — go to the right reference
@@ -76,6 +78,7 @@ Naming hazards worth pre-loading:
 - **"Where did `iss` / `sub` / `acr` / `scope` come from?"** → [references/base-claims.md](references/base-claims.md)
 - **"Did this mapper fire on this surface?"** → [references/mapper-execution.md](references/mapper-execution.md)
 - **"Why was `aud` rewritten after the mappers ran?"** → [references/post-mapper.md](references/post-mapper.md)
+- **"Why is/isn't the `organization` claim present, and in what shape?"** → [references/organizations.md](references/organizations.md)
 - **"Where is this in the source?"** → [references/source-pointers.md](references/source-pointers.md)
 
 ## Critical invariants the verifier must enforce
@@ -145,7 +148,11 @@ references back them up with line numbers.
     (L172-175) returns only priority. The upstream stream is a
     `Set<ProtocolMapperModel>` (DCSC.L68, L325), so equal-priority mappers run
     in `HashSet` iteration order. If two mappers write the same claim path,
-    require distinct priorities or flag the case as unverifiable.
+    require distinct priorities or flag the case as unverifiable. The same
+    HashSet contract governs intra-mapper iteration over user-state Sets — see
+    [references/organizations.md](references/organizations.md) §5 for the
+    `oidc-organization-membership-mapper` wildcard case, anchored by the
+    cross-fixture order divergence between adversarial-5 and adversarial-6.
 
 11. **Wire serialization drops null claims.** Token JSON is produced with
     `JsonInclude.NON_NULL` (`core/.../util/JsonSerialization.java:48`). Any
@@ -172,6 +179,25 @@ references back them up with line numbers.
     call sites: `StandardTokenExchangeProvider.L280`,
     `V1TokenExchangeProvider.L348`, `AuthorizationTokenService.L369`. See
     [references/post-mapper.md](references/post-mapper.md#access-token-transient-session-sid-nulling).
+
+13. **The `organization` claim has three scope-param entry paths with
+    materially different behaviour.** Default mapper config emits the claim as
+    a flat JSON array of org alias strings (`["acme"]`), same shape on access
+    and ID tokens (and on userinfo/introspection by mapper-toggle analogy).
+    Three paths:
+    (a) **Unqualified `scope=organization`** (static): emits the claim ONLY
+    when the user is a member of exactly one organisation. Multi-membership
+    and zero-membership both produce a null write → NON_NULL drops the claim.
+    (b) **Wildcard `scope=organization:*`** (dynamic): emits all of the user's
+    memberships. The dedup rule at [references/scope-resolution.md](references/scope-resolution.md)
+    L22-28 drops the static-default `organization` from candidates. Array
+    order is HashSet-iteration over org UUIDs (see invariant 10 extension).
+    (c) **Specific `scope=organization:<alias>`** (dynamic): narrows to that
+    alias if the user is a member; if the alias doesn't exist for the user,
+    pre-flight `isValidScope` rejects with HTTP 400 `invalid_scope` (NOT
+    silently skipped, NOT minted-with-absent-claim). See
+    [references/organizations.md](references/organizations.md) for the full
+    behavioural table and the `isValidScope` vs silent-skip clarification.
 
 ## When to consult fixtures
 

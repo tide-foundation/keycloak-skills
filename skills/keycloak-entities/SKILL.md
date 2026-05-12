@@ -17,20 +17,20 @@ Verified against Keycloak 26.5.5.
 
 ---
 
-## Source Code Layout
+## Upstream Source (github.com/keycloak/keycloak @ 26.5.5)
 
-Entity classes live under `model/jpa/src/main/java/`:
+Entity classes live in the upstream Keycloak repository on GitHub. The links below are **remote URLs**, not files in this working directory — fetch with `WebFetch` if you need to read them.
 
-| Path | What's there |
+| Upstream location | What's there |
 |---|---|
-| `org/keycloak/models/jpa/entities/` | Core entities: realm, user, client, role, group, scopes, mappings |
-| `org/keycloak/storage/jpa/entity/` | Federated user entities (`FederatedUser*`) |
-| `org/keycloak/authorization/jpa/entities/` | Authorization Services (UMA) entities |
-| `org/keycloak/events/jpa/` | Event/audit log entities |
-| `org/keycloak/models/jpa/entities/MigrationModelEntity.java` | Schema migration tracker |
-| `org/keycloak/models/jpa/entities/Organization*Entity.java` | Organizations (Keycloak 25+). Adapters and the provider live separately at `org/keycloak/organization/jpa/`. |
+| [Core entities package](https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/java/org/keycloak/models/jpa/entities) | realm, user, client, role, group, scopes, mappings |
+| [Federated user entities](https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/java/org/keycloak/storage/jpa/entity) | `FederatedUser*` classes |
+| [Authorization Services entities](https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/java/org/keycloak/authorization/jpa/entities) | UMA entities |
+| [Event/audit log entities](https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/java/org/keycloak/events/jpa) | event/audit entities |
+| [`MigrationModelEntity`](https://github.com/keycloak/keycloak/blob/26.5.5/model/jpa/src/main/java/org/keycloak/models/jpa/entities/MigrationModelEntity.java) | Schema migration tracker |
+| [Organization entities](https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/java/org/keycloak/models/jpa/entities) — `OrganizationEntity`, `OrganizationDomainEntity`, `OrganizationInvitationEntity` | Organizations (KC 25+). [Adapters and provider](https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/java/org/keycloak/organization/jpa) live separately. |
 
-Schema migrations: `model/jpa/src/main/resources/META-INF/jpa-changelog-*.xml` (Liquibase). Entity classes show JPA mapping; changelogs are authoritative for DB-side constraints/indexes.
+Schema migrations: [Liquibase changelogs in `META-INF`](https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/resources/META-INF). Entity classes show JPA mapping; changelogs are authoritative for DB-side constraints/indexes.
 
 Many tables are list-collection mappings (no dedicated entity class) — they back `@ElementCollection` fields on parent entities.
 

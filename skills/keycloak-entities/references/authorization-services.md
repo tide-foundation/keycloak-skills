@@ -2,7 +2,7 @@
 
 A separate sub-model only used if Authorization Services is enabled per client. Implements UMA 2.0 (User-Managed Access) — fine-grained, resource-based access control beyond simple role-mappings.
 
-Entity classes live under `org/keycloak/authorization/jpa/entities/`.
+Entity classes live in the upstream Keycloak repo: https://github.com/keycloak/keycloak/tree/26.5.5/model/jpa/src/main/java/org/keycloak/authorization/jpa/entities (remote URL — not a path in this working directory).
 
 Version pinning: see `../SKILL.md`.
 

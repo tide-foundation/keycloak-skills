@@ -1,5 +1,7 @@
 # Scope resolution
 
+> **All source paths in this document are remote URLs at [github.com/keycloak/keycloak](https://github.com/keycloak/keycloak) tag `26.5.5` — they are NOT files in this working directory.** Shorthand like `TokenManager.java:640-677` or `DCSC.L188-212` refers to the same upstream sources. Use `WebFetch` to fetch them; do not look for them on the local filesystem. Full path → URL mapping is in [source-pointers.md](source-pointers.md).
+
 Defines how the `(client, scopeParam, user)` triple becomes the
 `allowedClientScopes` set on `DefaultClientSessionContext` (DCSC), and how that
 set projects into the `scope` claim. Two cooperating functions:
@@ -21,7 +23,9 @@ if scopeParam == null:
 
 # Drop default scopes whose name+":" appears as a dynamic-scope prefix in
 # scopeParam AND which carry an OrganizationMembershipMapper. Deduplicates
-# dynamic organization scopes.                          # L656-660
+# dynamic organization scopes. Fires for both `organization:<alias>` and
+# `organization:*` — see organizations.md §3.2 and §3.3 for worked examples.
+#                                                       # L656-660
 candidates ← { s ∈ candidates :
                  s == client
               ∨ NOT scopeParam.contains(s.name + ":")
@@ -35,6 +39,9 @@ for name in scopeParam.split(/\s+/).distinct():
     elif Feature.ORGANIZATION enabled:
         s ← tryResolveDynamicClientScope(name, user, session)   # L679-695
         if s != null: candidates.add(s)
+        # The `organization` mapper has three entry forms — unqualified,
+        # `organization:*`, `organization:<alias>` — with materially
+        # different behaviour. See organizations.md.
     else:
         skip                                # silently — pre-flight isValidScope
                                             # would already have rejected unknown names
@@ -155,15 +162,21 @@ by role mappers seeing an empty role set, not by scope resolution. See
   the auth-session note.
 - **Duplicate names in the param**: deduped by `.distinct()` at L666.
 - **Dynamic scope rejected by `tryResolveDynamicClientScope`**: silently
-  skipped by Step 1. If the name is otherwise unknown, pre-flight
-  `isValidScope` still rejects.
+  skipped by Step 1 (Step 1 here = candidate-set assembly inside
+  `getRequestedClientScopes`, *not* pre-flight). Pre-flight `isValidScope`
+  runs *before* Step 1; for dynamic-scope-shaped names it calls the same
+  resolver and rejects with `INVALID_SCOPE` if resolution returns null.
+  A registered prefix is not by itself enough to pass pre-flight — the
+  alias has to resolve. So `organization:nonexistent` is rejected with
+  HTTP 400 even though `organization:` is a registered prefix. See
+  [organizations.md](organizations.md) §4 for the worked example.
 
 ## See also
 
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:640-695` — candidate-set assembly.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:705-762` — pre-flight validation.
-- `services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java:130-145` — `getClientScopesStream` (lazy filter).
-- `services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java:188-212` — `getScopeString` (`scope` claim).
-- `services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java:252-300` — `isAllowed` and `isClientScopePermittedForUser`.
-- `server-spi/src/main/java/org/keycloak/models/ClientScopeModel.java:109-112` — `isIncludeInTokenScope` default.
-- `services/src/main/java/org/keycloak/protocol/oidc/grants/OAuth2GrantTypeBase.java:240-259` — pre-flight call site.
+- [`TokenManager.java:640-695`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L640-L695) — candidate-set assembly.
+- [`TokenManager.java:705-762`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L705-L762) — pre-flight validation.
+- [`DefaultClientSessionContext.java:130-145`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java#L130-L145) — `getClientScopesStream` (lazy filter).
+- [`DefaultClientSessionContext.java:188-212`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java#L188-L212) — `getScopeString` (`scope` claim).
+- [`DefaultClientSessionContext.java:252-300`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java#L252-L300) — `isAllowed` and `isClientScopePermittedForUser`.
+- [`ClientScopeModel.java:109-112`](https://github.com/keycloak/keycloak/blob/26.5.5/server-spi/src/main/java/org/keycloak/models/ClientScopeModel.java#L109-L112) — `isIncludeInTokenScope` default.
+- [`OAuth2GrantTypeBase.java:240-259`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/OAuth2GrantTypeBase.java#L240-L259) — pre-flight call site.

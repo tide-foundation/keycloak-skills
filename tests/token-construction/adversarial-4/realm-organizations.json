@@ -1,0 +1,52 @@
+{
+  "organizations": [
+    {
+      "members": [
+        {
+          "createdTimestamp": 1778552892113,
+          "disableableCredentialTypes": [],
+          "email": "adv4-member@example.invalid",
+          "emailVerified": true,
+          "enabled": true,
+          "firstName": "Adv4",
+          "id": "fdda407b-2249-495f-87d2-fea3a95d806d",
+          "lastName": "Member",
+          "membershipType": "UNMANAGED",
+          "notBefore": 0,
+          "requiredActions": [],
+          "totp": false,
+          "username": "adv4-member"
+        }
+      ],
+      "organization": {
+        "alias": "acme",
+        "attributes": {},
+        "domains": [
+          {
+            "name": "acme.test",
+            "verified": true
+          }
+        ],
+        "enabled": true,
+        "id": "14beb35b-f133-45a4-8f5e-d2794fc57c69",
+        "name": "Acme Corp"
+      }
+    },
+    {
+      "members": [],
+      "organization": {
+        "alias": "globex",
+        "attributes": {},
+        "domains": [
+          {
+            "name": "globex.test",
+            "verified": true
+          }
+        ],
+        "enabled": true,
+        "id": "e119ee52-84fb-4e50-a2da-cc09b303ff24",
+        "name": "Globex Inc"
+      }
+    }
+  ]
+}

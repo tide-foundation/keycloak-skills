@@ -1,0 +1,101 @@
+{
+  "committed_value": {
+    "member": {
+      "access_token_organization_claim_trap_index": 4,
+      "access_token_organization_claim_value": ["acme"],
+      "id_token_organization_claim_trap_index": 4,
+      "id_token_organization_claim_value": ["acme"],
+      "access_token_scope_claim_set": ["openid", "profile", "organization", "email"],
+      "id_token_scope_claim_set_or_absent": "absent"
+    },
+    "nonmember": {
+      "access_token_organization_claim_trap_index": 1,
+      "access_token_organization_claim_value": null,
+      "id_token_organization_claim_trap_index": 1,
+      "id_token_organization_claim_value": null,
+      "access_token_scope_claim_set": ["openid", "profile", "organization", "email"],
+      "id_token_scope_claim_set_or_absent": "absent"
+    }
+  },
+  "shapes_ruled_out_by_skill": {
+    "shape_2_empty_array": "Ruled out for non-member: organizations.md §2 explicitly states the wire shape under NON_NULL is the absence of the key, not '[]' or '{}'. The empirical anchor (forbidden to read here) is even cited inline in §2 as confirmation. For the member, ruled out because the mapper emits a non-null array of aliases when N==1 membership (§3.1).",
+    "shape_3_empty_object": "Ruled out by organizations.md §1 — under OOTB mapper config (multivalued=true, jsonType.label=String, no addOrganizationId / addOrganizationAttributes) the shape is a flat JSON array of alias strings, not an object. §2 also rules out '{}' as the empty-membership shape.",
+    "shape_5_object_keyed_empty_bodies": "Ruled out by organizations.md §1 — OOTB config (addOrganizationId and addOrganizationAttributes both unset) yields the array-of-strings shape, NOT an object-keyed-by-alias shape. The object shape is explicitly flagged as a likely behaviour of those alternative flags, but with 'no fixture coverage' in this skill.",
+    "shape_6_object_keyed_non_empty_bodies": "Same as shape 5 — depends on alternative mapper flags that are unset here. realm-config.json L1166-1181 confirms only the four standard config keys (claim.name, jsonType.label, multivalued, the three surface toggles) are set on the mapper.",
+    "shape_7_array_of_org_representations": "Ruled out by organizations.md §1 — the OOTB emission is a flat array of alias strings, not an array of full org representation objects. The admin REST shape is irrelevant to the OIDC mapper.",
+    "shape_8_realm_wide_list": "Ruled out by organizations.md §3.1 — the mapper writes ONLY memberships of the requesting user. The globex control in realm-organizations.json (member=adv4-member is NOT in globex) is the deliberate trap; globex must not appear.",
+    "shape_9_different_per_surface": "Ruled out by §1 ('Same shape, same contents, across surfaces') plus invariant 7 (ID-token base claims sourced from transformed access token; the OOTB mapper exposes no per-surface emission toggle, only the surface-gating toggles which are all true here). For the member, both surfaces commit to shape 4. For the non-member, both commit to shape 1.",
+    "shape_10_non_deterministic": "Off-menu for the predictor (cannot observe a determinism failure). With a single-membership user under the static path, there is no Set-iteration ordering question to begin with — invariant 10 / organizations.md §5 only bite under wildcard multi-membership."
+  },
+  "skill_passages_invoked": [
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "Table at L15-19, row 'organization (unqualified, static)': single-member → ['acme'], zero-member → claim absent (NON_NULL drop)",
+      "what_it_let_you_commit": "Committed shape 4 for the member and shape 1 for the non-member — directly tabulated against the exact scope-param form ('organization', unqualified) and the two membership cardinalities present in the fixture."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§1 'Wire shape under default mapper config' L27-48",
+      "what_it_let_you_commit": "Committed the literal value ['acme'] (array-of-alias-strings) rather than an object-keyed-by-alias shape. The mapper config in realm-config.json L1166-1181 matches the OOTB profile (no addOrganizationId, no addOrganizationAttributes) on which §1 is anchored."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§2 'NON_NULL on zero/empty membership' L56-64",
+      "what_it_let_you_commit": "Committed shape 1 (absent) — not shape 2 (empty array) or shape 3 (empty object) — for the non-member's organization claim on both surfaces."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§3.1 'Unqualified scope=organization (static path)' L68-81",
+      "what_it_let_you_commit": "Established that under unqualified scope=organization (the scope param in both requests), the mapper writes the claim iff the user has exactly one membership; zero-member writes null and NON_NULL drops. Pinned the member's path through the static branch (no dedup, no dynamic resolution) and the non-member's NON_NULL drop."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 2 (L93-98)",
+      "what_it_let_you_commit": "Committed the access-token scope claim set to {openid, profile, organization, email}: ZERO-attribute scopes default to include.in.token.scope=true (organization, profile, email — all confirmed 'true' in realm-config.json L1158-1160, L743-745, L1185-1188); explicit 'false' on web-origins (L979), acr (L1081), roles (L1106), basic (L1283); openid re-attached by TokenUtil.attachOIDCScope because the request param is openid-bearing."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 7 (L130-133) + base-claims.md §'ID-token base claims' table (L92-104)",
+      "what_it_let_you_commit": "Committed id_token_scope_claim_set_or_absent='absent'. The ID-token base is a fresh IDToken() with only the eleven explicitly-listed fields (jti, typ, sub, aud, iat, azp, iss, nonce, sid, exp, acr). 'scope' is NOT in that list. No mapper writes 'scope' to the ID token in this fixture's mapper set. Therefore the ID token has no scope claim."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 11 (L156-163) — NON_NULL drops null claims",
+      "what_it_let_you_commit": "Confirmed that the non-member's organization claim becomes wire-absent (shape 1) rather than wire-present-as-empty (shapes 2/3). Provides the SKILL-level cross-reference for what organizations.md §2 articulates concretely."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 13 (L181-198) — three scope-param entry paths for the organization claim",
+      "what_it_let_you_commit": "Confirmed at the SKILL.md layer that the unqualified 'organization' form is path (a): 'emits the claim ONLY when the user is a member of exactly one organisation. Multi-membership and zero-membership both produce a null write → NON_NULL drops the claim.' This is the new (post-edit) invariant; it directly resolves the two-token commitment without needing to consult fixtures or surprises.md."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/scope-resolution.md",
+      "lines_or_section": "L22-28 dedup rule + L104-126 'The scope claim' / getScopeString algorithm",
+      "what_it_let_you_commit": "For the unqualified static path, the dedup rule does NOT fire (no colon in scope param), so the static-default organization scope survives in the candidate set. The scope claim then projects the names of all allowed scopes whose isIncludeInTokenScope() is true (default true when attribute absent), client itself filtered out, openid re-attached. This locks the four-element scope-claim set."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§5 'Intra-mapper Set iteration — extending invariant 10' L188-205",
+      "what_it_let_you_commit": "Confirmed that the HashSet-iteration hedge applies only under the wildcard path (organization:*) and only when |memberships|>=2. The fixture uses the static path with |memberships| in {0,1}, so NO order hedge is needed — for the member, ['acme'] is a single-element array; for the non-member, the claim is absent."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 6 (L119-127) — fullScopeAllowed",
+      "what_it_let_you_commit": "Noted that adv4-client has fullScopeAllowed=false (realm-config.json L1595), but invariant 6 + scope-resolution.md L139-148 ('fullScopeAllowed interaction (clarification)') confirm this flag affects ONLY role-mapper inputs / restrictRequestedAudience, NOT scope resolution or the organization claim. So fullScopeAllowed=false changes nothing here."
+    }
+  ],
+  "reasoning": {
+    "step_1_scope_resolution_member": "Request: scope='openid organization', client adv4-client. Pre-flight isValidScope passes (organization is in client.defaultClientScopes per realm-config.json L1583-1591). Candidate set = client.getClientScopes(default=true) ∪ {client}: that's the 7 attached default scopes (web-origins, acr, profile, roles, organization, basic, email) plus the client itself. Dedup rule (scope-resolution.md L22-28): scope param 'openid organization' contains no 'organization:' substring, so the static-default organization scope is NOT dropped. Optional-scope add loop: 'openid' is stripped (it is the OIDC protocol marker, not a registered scope name); 'organization' is already in the default-attached set so the add-loop is a no-op. Final candidate set unchanged. Step 2 filter isAllowed: each scope's role mappings (mostly none for the OOTB built-ins) trivially pass. Allowed set = the 7 default scopes + client.",
+    "step_2_mapper_set_member": "ProtocolMapper union over all allowed scopes, filtered by protocol=openid-connect and isEnabled. Critically: the 'organization' client scope (realm-config.json L1156-1183) contributes exactly one mapper — oidc-organization-membership-mapper (L1166-1181) — with access.token.claim=true, id.token.claim=true, introspection.token.claim=true, multivalued=true, jsonType.label=String, claim.name=organization. addOrganizationId and addOrganizationAttributes are unset, locking the OOTB array-of-strings shape (organizations.md §1).",
+    "step_3_access_token_member": "initToken sets the access-token base claims (id, typ, iat, azp, iss, scope=getScopeString(), acr, sid, exp; sub NOT set here per invariant 1 since the session is persistent for password grant). scope claim = names of allowed scopes with isIncludeInTokenScope()=true: profile (true L745), web-origins (false L979), acr (false L1081), roles (false L1106), organization (true L1160), basic (false L1283), email (true L1233). After client-filter (DCSC.L200) and the true-only filter, we have {profile, organization, email}. attachOIDCScope prepends openid (the request param is openid-bearing). Final scope claim contents (set): {openid, profile, organization, email}. (organizations.md §3.1 documents a side-finding that 'organization' may appear TWICE in the literal scope string for single-member users — but the prediction-target asks for the SET, which de-duplicates.) The oidc-organization-membership-mapper then fires with access.token.claim=true; user has exactly one membership (acme); §3.1 single-membership lucky-path emits the claim. Wire value: ['acme'].",
+    "step_4_id_token_member": "generateIDToken seeds an empty IDToken with the 11 explicitly-listed fields (base-claims.md L92-104). scope is NOT one of them. transformIDToken then runs the OIDCIDTokenMapper-side dispatch over the same mapper set, gated by id.token.claim. The oidc-organization-membership-mapper has id.token.claim=true (realm-config.json L1171), so it fires; same setClaim logic → ['acme']. No mapper in this fixture writes a 'scope' claim to the ID token. Therefore: organization=['acme'] (shape 4), scope=absent.",
+    "step_5_nonmember_divergence": "Non-member: scope resolution and mapper-set assembly are IDENTICAL to the member (same client, same scope param, same set of attached default scopes; the user's role mappings don't gate scope inclusion here because no relevant scope carries role mappings that fail for adv4-nonmember). scope claim is therefore identical: {openid, profile, organization, email} on the access token, absent on the ID token. The single point of divergence is inside the oidc-organization-membership-mapper's setClaim: §3.1 says zero-membership → null write → invariant 11 (NON_NULL) drops the claim from the wire. Both access and ID surfaces drop it (same mapper, both toggles true, both have null source). organization claim: shape 1 (absent) on both surfaces. Empirical anchor in §2 directly cites adversarial-4/actual-token-nonmember.json as having no organization key (this is a forward-pointer in the docs; I have NOT read that file).",
+    "step_6_post_mapper": "restrictRequestedAudience (invariant 8): REQUESTED_AUDIENCE_CLIENTS is not set (no token-exchange / requested-audience refresh in either request). No-op. sid-nulling (invariant 12): password grant retains sid (jti prefix 'onrtcc:' for password persistent-session per fixtures), but this doesn't touch the organization claim. No post-mapper transform alters either commitment."
+  },
+  "fixture_target_compliance_note": "I read only: SKILL.md, references/organizations.md, references/scope-resolution.md (partial), references/base-claims.md (partial), adversarial-4/prediction-target.md, adversarial-4/realm-config.json (targeted), adversarial-4/realm-organizations.json, adversarial-4/request-member.json, adversarial-4/request-nonmember.json. I did NOT open setup.md, surprises.md, any actual-* token JSON, any log-* file, prediction.before-org-docs.json, diff.before-org-docs.md, any sibling adversarial-{1,2,3,5,6} directory, or any fixtures/ token / log file. organizations.md does cite adversarial-4/actual-token-nonmember.json as an empirical anchor in its §2 prose — I read that *citation* (the file name appearing in the SKILL prose) but did not open the file itself. Similarly §3.2 mentions adversarial-5 and adversarial-6 token filenames; I did not open those either. The skill's own forward-pointers to those fixtures are inside the in-scope reference file, and reading them in prose form is not the same as reading the fixture artefacts.",
+  "remaining_ambiguity": {
+    "single_member_scope_duplicate": "organizations.md §3.1 documents a side-finding that under Feature.ORGANIZATION, single-membership users may see 'organization' appear TWICE in the literal scope-claim string (e.g. 'openid profile organization organization email'). The prediction target asks for the SET of scope names (order-insensitive), which collapses duplicates. So the set-level commitment is unaffected: {openid, profile, organization, email}. If the target instead asked for the literal scope-claim STRING, I would hedge on the duplicate per §3.1's 'mechanism not yet source-traced' caveat. The non-member's scope claim does not exhibit this duplication (zero-membership does not trigger the §3.1 side-finding's auto-resolution path, by the same logic that makes the organization claim null-and-dropped). I therefore commit {openid, profile, organization, email} for both users.",
+    "userinfo_introspection_not_asked": "The prediction target only asks about access-token and ID-token surfaces, so I do not need to commit to userinfo / introspection. organizations.md §6 'Open items' flags that those surfaces lack direct fixture evidence — had they been asked, I would have hedged.",
+    "alternative_mapper_flags_not_present": "addOrganizationId and addOrganizationAttributes are unset in this realm's mapper config (realm-config.json L1166-1181 lists only the standard four config keys). So the array-of-strings shape is locked. No ambiguity here, but flagged because organizations.md §1 explicitly notes the alternative shapes are uncovered."
+  }
+}

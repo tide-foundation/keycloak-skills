@@ -1,0 +1,85 @@
+{
+  "fixture": "adversarial-6",
+  "request_specific": {
+    "outcome": "success",
+    "if_http_4xx_status_code": null,
+    "if_http_4xx_error_code": null,
+    "access_token_organization_claim": ["acme"],
+    "id_token_organization_claim": ["acme"],
+    "access_token_scope_claim_string": "openid profile email organization:acme",
+    "trap_index_organization": "1a",
+    "trap_index_scope": "1-scope-A",
+    "reasoning": "Pre-flight isValidScope succeeds because tryResolveDynamicClientScope returns a non-null dynamic scope (alias 'acme' exists and the user is a member). Per organizations.md §3.3 the dedup rule in scope-resolution.md L22-28 fires and drops the static-default 'organization' from the candidate set, leaving only the dynamic 'organization:acme' which narrows the OrganizationMembershipMapper to that alias only. Default mapper config (claim.name=organization, multivalued=true, access.token.claim=true, id.token.claim=true) produces a flat array ['acme'] on both surfaces per organizations.md §1 (and invariant 7 propagates access-token claim into id-token base). The scope claim is DCSC.getScopeString() (scope-resolution.md L104-117): scopes with include.in.token.scope=true (profile, email, dynamic organization:acme) plus openid re-attached by attachOIDCScope. Bare 'organization' is absent because dedup removed the static scope; only 'organization:acme' appears.",
+    "skill_passages_invoked": [
+      "SKILL.md invariant 13 (L181-198)",
+      "organizations.md §3.3 (L127-156)",
+      "organizations.md §1 (L27-48)",
+      "scope-resolution.md L22-28 (dedup rule)",
+      "scope-resolution.md L86-97 (pre-flight isValidScope — passes here)",
+      "scope-resolution.md L104-117 (getScopeString)",
+      "SKILL.md invariant 2 (scope claim composition)",
+      "SKILL.md invariant 7 (id-token inherits transformed access-token claims)"
+    ]
+  },
+  "request_wildcard": {
+    "outcome": "success",
+    "if_http_4xx_status_code": null,
+    "if_http_4xx_error_code": null,
+    "access_token_organization_claim": ["globex", "acme"],
+    "id_token_organization_claim": ["globex", "acme"],
+    "access_token_scope_claim_string": "openid profile email organization:*",
+    "trap_index_organization": "2b",
+    "trap_index_scope": "2-scope-A",
+    "wildcard_order_commitment": "hedge-with-citation: empirically ['globex', 'acme'] per organizations.md §3.2 (L118-120), which explicitly anchors adversarial-6/actual-token-wildcard.json as ['globex','acme']; the *contract-derivable* claim is only the set {acme, globex}, with order being HashSet-iteration over org UUIDs per invariant 10 extension (SKILL.md L145-153) and organizations.md §5 (L188-201). Committing to ['globex','acme'] is the citation-backed empirical answer for this exact fixture; were the fixture not pre-anchored in the skill, the contract-only commitment would be 'hedge-with-citation: set={acme,globex}, order unverifiable per invariant 10 + organizations.md §5'.",
+    "reasoning": "Pre-flight isValidScope succeeds: tryResolveDynamicClientScope handles 'organization:*' under Feature.ORGANIZATION (organizationsEnabled=true). Per organizations.md §3.2 dedup drops static 'organization' (matches name+':' prefix and carries OrganizationMembershipMapper), and the dynamic 'organization:*' scope emits ALL of the user's memberships as a flat alias array. User is member of acme and globex (realm-organizations.json), so claim contains both. Order is HashSet iteration over org UUIDs per organizations.md §5 / invariant 10 extension; organizations.md §3.2 directly anchors adv-6 wildcard as ['globex','acme']. Scope claim contains 'organization:*' literal (not bare 'organization', because dedup removed it) per organizations.md §3.2 consequence 1.",
+    "skill_passages_invoked": [
+      "SKILL.md invariant 13 (L181-198)",
+      "SKILL.md invariant 10 extension (L145-153)",
+      "organizations.md §3.2 (L97-125)",
+      "organizations.md §5 (L188-201)",
+      "organizations.md §1 (L27-48)",
+      "scope-resolution.md L22-28 (dedup)",
+      "scope-resolution.md L35-37 (tryResolveDynamicClientScope)",
+      "SKILL.md invariant 2 (scope claim)",
+      "SKILL.md invariant 7 (id-token claim propagation)"
+    ]
+  },
+  "request_nonexistent": {
+    "outcome": "http_4xx",
+    "if_http_4xx_status_code": 400,
+    "if_http_4xx_error_code": "invalid_scope",
+    "access_token_organization_claim": "n/a-rejected",
+    "id_token_organization_claim": "n/a-rejected",
+    "access_token_scope_claim_string": "n/a-rejected",
+    "trap_index_outcome": "3a",
+    "trap_index_scope": "3-scope-A",
+    "reasoning": "Per organizations.md §3.3 and §4, when the alias is not a real organisation (or user is not a member), tryResolveDynamicClientScope returns null. Pre-flight isValidScope (scope-resolution.md L86-97, L156-159 as clarified by organizations.md §4) then rejects with OAuthErrorException.INVALID_SCOPE → HTTP 400 body {\"error\":\"invalid_scope\",\"error_description\":\"Invalid scopes: openid organization:nonexistent\"}. The clarification in organizations.md §4 settles the prior ambiguity: 'organization:' being a registered dynamic prefix is NOT enough to pass pre-flight — the alias must resolve. 'Silently skipped by Step 1' refers to candidate-set assembly, which never runs in this rejection case (pre-flight runs first at OAuth2GrantTypeBase.java:240-259). No token is minted, so all claim slots are n/a-rejected.",
+    "skill_passages_invoked": [
+      "SKILL.md invariant 13(c) (L193-198)",
+      "organizations.md §3.3 (L127-156)",
+      "organizations.md §4 (L157-186)",
+      "scope-resolution.md L86-97 (pre-flight INVALID_SCOPE branch)",
+      "scope-resolution.md L156-159 (silent-skip vs pre-flight clarification)"
+    ]
+  },
+  "fixture_target_compliance_note": "Consulted: SKILL.md, references/organizations.md, references/scope-resolution.md, realm-config.json (sections around client adv6-client, organization client scope, and include.in.token.scope flags only), realm-organizations.json, request-specific.json, request-wildcard.json, request-nonexistent.json, prediction-target.md. Checked-not-read (forbidden): setup.md, surprises.md, actual-token-*.json, actual-id-token-*.json, actual-response-nonexistent.json, log-*.txt, prediction.before-org-docs.json, diff.before-org-docs.md, all sibling adversarial-{1,2,3,4,5} fixtures, fixtures/token-*.json, fixtures/logs-*.log, fixtures/realm-export.json. No forbidden files were opened. Note: organizations.md §3.2 and §3.3 in the target skill explicitly cite this fixture's actual-token-wildcard.json and actual-response-nonexistent.json as empirical anchors — those citations were read inline within the skill document but the underlying fixture files were not opened.",
+  "shapes_ruled_out_by_skill": [
+    "1b (multi-membership claim) — organizations.md §3.3 narrows specific-alias form to ['<alias>'] only",
+    "1c (absent on success specific) — §3.3 explicitly emits the one-element array on success",
+    "1d (HTTP 4xx for specific) — alias resolves (user is a member), pre-flight passes per L86-97",
+    "1-scope-B (bare organization + organization:acme) — dedup at L22-28 drops bare 'organization'",
+    "1-scope-C (bare organization only) — dedup drops bare; dynamic scope is the survivor",
+    "1-scope-D (organization:acme twice) — no source-traced mechanism in skill for synthetic duplication on the dynamic path",
+    "2c (wildcard auto-picks one) — §3.2 emits ALL memberships",
+    "2d (absent on wildcard for multi-member) — §3.2 explicitly produces all aliases",
+    "2e (HTTP 4xx on wildcard) — wildcard always resolves under Feature.ORGANIZATION per §3.2",
+    "2-scope-B (bare + wildcard) — dedup drops bare per §3.2 consequence 1",
+    "2-scope-C (bare only) — wildcard literal survives, bare is dropped",
+    "2-scope-D (wildcard escaped/dropped) — §3.2 consequence 1: literal 'organization:*' appears",
+    "3b (HTTP 200, claim absent) — §3.3 + §4: pre-flight rejection, no token at all",
+    "3c (HTTP 200, ['nonexistent']) — §3.3: alias must exist on user, otherwise null from resolver → reject",
+    "3d (HTTP 200, fallback wildcard) — §4 explicitly rules out fallback semantics",
+    "3e (different 4xx error) — §3.3 names INVALID_SCOPE specifically",
+    "3-scope-B/C/D — no token minted, so no scope claim exists"
+  ]
+}

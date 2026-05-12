@@ -1,5 +1,7 @@
 # Mapper execution pipeline
 
+> **All source paths in this document are remote URLs at [github.com/keycloak/keycloak](https://github.com/keycloak/keycloak) tag `26.5.5` — they are NOT files in this working directory.** Shorthand like `AbstractOIDCProtocolMapper.L89-99` or `OIDCAttributeMapperHelper.L414-422` refers to the same upstream sources. Use `WebFetch`; do not look for them on the local filesystem. Full path → URL mapping is in [source-pointers.md](source-pointers.md).
+
 Defines the per-mapper, per-surface execution loop: the toggle check that
 decides whether a mapper fires on a given surface, and the dispatch into the
 mapper's `setClaim` override.
@@ -210,8 +212,8 @@ fires_on_surface(mapper, surface, client, session):
 
 ## See also
 
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:793-841` — the four access/userinfo/introspection/response transformers.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:973-981` — `transformIDToken`.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:936-971` — `TokenCollector` accumulator.
-- `services/src/main/java/org/keycloak/protocol/oidc/mappers/AbstractOIDCProtocolMapper.java:73-160` — toggle gates and `setClaim` defaults.
-- `services/src/main/java/org/keycloak/protocol/oidc/mappers/OIDCAttributeMapperHelper.java:58-80, 387-427` — config key constants and predicate implementations.
+- [`TokenManager.java:793-841`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L793-L841) — the four access/userinfo/introspection/response transformers.
+- [`TokenManager.java:973-981`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L973-L981) — `transformIDToken`.
+- [`TokenManager.java:936-971`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L936-L971) — `TokenCollector` accumulator.
+- [`AbstractOIDCProtocolMapper.java:73-160`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/AbstractOIDCProtocolMapper.java#L73-L160) — toggle gates and `setClaim` defaults.
+- [`OIDCAttributeMapperHelper.java:58-80`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/OIDCAttributeMapperHelper.java#L58-L80), [`387-427`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/OIDCAttributeMapperHelper.java#L387-L427) — config key constants and predicate implementations.

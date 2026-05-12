@@ -1,76 +1,87 @@
 {
   "committed_value": {
-    "shape": "set-with-order-hedge",
-    "set": ["openid", "profile", "email", "adv2-scope-attr-true", "adv2-client", "adv2-scope-attr-unset"],
+    "set_membership": {
+      "in": [
+        "openid",
+        "profile",
+        "email",
+        "adv2-scope-attr-true",
+        "adv2-scope-attr-unset",
+        "adv2-client"
+      ],
+      "out": [
+        "basic",
+        "acr",
+        "roles",
+        "web-origins"
+      ]
+    },
     "openid_position": "first",
-    "inter_scope_order": "Hedged: SKILL.md invariant 10 ('Mapper sort ties are not deterministic ... the upstream stream is a Set<...>, so equal-priority [items] run in HashSet iteration order') and references/scope-resolution.md describe `allowedClientScopes` as the `set` on DCSC and quote `getScopeString` (DCSC.L188-212) as `allowedClientScopes.filter(...).map(name).join(\" \")` with no ordering contract for the non-`openid` tokens. `openid` alone is positionally fixed because `TokenUtil.attachOIDCScope` prepends it (scope-resolution.md L109-110). The other five names may appear in any HashSet-iteration permutation.",
-    "an_example_concrete_string_consistent_with_above": "openid profile email adv2-scope-attr-true adv2-client adv2-scope-attr-unset"
+    "inter_scope_order": "UNVERIFIABLE — invariant 10: equal-priority items in allowedClientScopes are projected by getScopeString from a Set<ClientScopeModel> with HashSet iteration order; no contract-derivable ordering for the non-openid tokens.",
+    "representative_string": "openid profile email adv2-scope-attr-true adv2-scope-attr-unset adv2-client (non-openid order JVM-dependent)"
   },
-  "set_membership_table": {
-    "openid": {
-      "in": true,
-      "rule": "Request `scope=openid` → original param is OIDC → `TokenUtil.isOIDCRequest` true → `TokenUtil.attachOIDCScope` prepends `openid` if absent (scope-resolution.md `getScopeString` algorithm, DCSC.L188-212; SKILL.md invariant 2)."
-    },
-    "profile": {
-      "in": true,
-      "rule": "Attached as default client scope to `adv2-client` (realm-config L664). `include.in.token.scope=true` (L1094). No role scope mappings on the realm's built-in `profile`, so isAllowed/isClientScopePermittedForUser passes universally (scope-resolution.md L55-56). Survives DCSC.L200 filter (not the ClientModel)."
-    },
-    "email": {
-      "in": true,
-      "rule": "Attached as default scope (L666). `include.in.token.scope=true` (L905). No role scope mappings → universal pass."
-    },
-    "basic": {
-      "in": false,
-      "rule": "Attached as default scope (L665) but `include.in.token.scope=false` (L1328). `getScopeString` filters out scopes whose `isIncludeInTokenScope()` is false (scope-resolution.md L107). Listed in the doc as one of the explicit-`false` built-ins (scope-resolution.md L118-120)."
-    },
-    "acr": {
-      "in": false,
-      "rule": "Default scope (L662) but `include.in.token.scope=false` (L1070). Filtered by the same rule as `basic` (scope-resolution.md L118-120)."
-    },
-    "roles": {
-      "in": false,
-      "rule": "Default scope (L663) but `include.in.token.scope=false` (L1434). Filtered (scope-resolution.md L118-120)."
-    },
-    "web-origins": {
-      "in": false,
-      "rule": "Default scope (L661) but `include.in.token.scope=false` (L1498). Filtered (scope-resolution.md L118-120)."
-    },
-    "adv2-scope-attr-unset": {
-      "in": true,
-      "rule": "Default scope (L668), no `include.in.token.scope` attribute set on the scope (L1518-1525). Per SKILL.md invariant 2 and scope-resolution.md L114-117 / `ClientScopeModel.java:109-112`, missing attribute defaults to `true`. No role scope mappings → universal pass."
-    },
-    "adv2-scope-attr-true": {
-      "in": true,
-      "rule": "Default scope (L659), `include.in.token.scope=true` explicit (L1423). No role scope mappings → universal pass."
-    },
-    "adv2-scope-attr-false": {
-      "in": false,
-      "rule": "Default scope (L667) but `include.in.token.scope=false` explicit (L839). Filtered by `getScopeString`'s `isIncludeInTokenScope` filter (scope-resolution.md L107)."
-    },
-    "adv2-client": {
-      "in": true,
-      "rule": "Two distinct objects share the name `adv2-client`: (a) the ClientModel itself (always added to the candidate set per scope-resolution.md L13-17, then filtered out at DCSC.L200 by the `NOT instanceof ClientModel` filter) and (b) a ClientScopeModel literally named `adv2-client` attached as a default scope (L660, defined L890-898) with `include.in.token.scope=true` (L894). The DCSC.L200 client-self filter is by `instanceof ClientModel`, NOT by name match — so the ClientScopeModel survives. Result: `adv2-client` appears once in the scope claim (the scope, not the client). The scope description (L891) explicitly flags this as a probe of the L200 filter."
-    }
-  },
-  "shapes_ruled_out_by_skill": {
-    "absent": "SKILL.md macro flow step 3 lists `scope` as one of the base claims set unconditionally by `initToken` (TokenManager.L992-994 region, base-claims.md). With OIDC request and `getScopeString()` non-empty (it produces at least `openid`), the claim is present.",
-    "exact-string-with-fixed-permutation": "Hedged because invariant 10 plus scope-resolution.md's silence on ordering for the non-`openid` portion of `getScopeString` mean any specific permutation of the five non-`openid` names is JVM/HashSet-dependent and not contract-derivable. `openid` is the only positionally-fixed token (prepended by `attachOIDCScope`)."
-  },
+  "shapes_ruled_out_by_skill": [
+    "Not absent: TokenUtil.isOIDCRequest(scope param 'openid') is true → attachOIDCScope prepends 'openid'; getScopeString returns non-empty (scope-resolution.md L104-117).",
+    "basic / acr / roles / web-origins are excluded — their client-scope attribute include.in.token.scope is explicitly 'false' (scope-resolution.md L119-126, ClientScopeModel.java:109-112).",
+    "adv2-scope-attr-false is excluded — explicit include.in.token.scope=false.",
+    "adv2-scope-attr-unset IS included — attribute deliberately omitted; default for missing attribute is true (invariant 2, scope-resolution.md L119-122).",
+    "adv2-client (the scope of the same name) IS included — it is a separate ClientScopeModel from the adv2-client ClientModel. DCSC.L200 filter drops only entries that are 'instanceof ClientModel'; a same-named ClientScopeModel is unaffected (scope-resolution.md L108-112).",
+    "openid was not registered as a client scope and is not pulled from the candidate set — it is reattached unconditionally by attachOIDCScope because the auth-session SCOPE note represents an OIDC request (scope-resolution.md L114-116, edge cases bullet 'openid in the param').",
+    "No optional scopes appear (organization, address, phone, offline_access, microprofile-jwt) — scopeParam='openid' contains no name matching the optional list; openid itself is stripped from the validation iterator and never resolves to a client scope.",
+    "fullScopeAllowed=false on adv2-client does NOT change scope resolution — it only affects TokenManager.getAccess role intersection (invariant 6, scope-resolution.md 'fullScopeAllowed interaction')."
+  ],
   "skill_passages_invoked": [
-    "SKILL.md invariant 2 — 'The `scope` claim is not the requested scope param. It is `DefaultClientSessionContext.getScopeString()` — names of allowed client scopes whose `isIncludeInTokenScope()` is true, with `openid` re-attached if the original request was OIDC (DCSC.L188-212). The client itself is filtered out (DCSC.L200). A scope with no `include.in.token.scope` attribute defaults to true, not false (`ClientScopeModel.java:109-112`).'",
-    "SKILL.md invariant 10 — 'Mapper sort ties are not deterministic ... the upstream stream is a Set<ProtocolMapperModel> ... equal-priority mappers run in HashSet iteration order.' Applied by analogy to the `allowedClientScopes` set iterated by `getScopeString`.",
-    "references/scope-resolution.md 'The `scope` claim' (L99-122) — getScopeString algorithm: filter NOT instanceof ClientModel, filter isIncludeInTokenScope, map name, join, then attachOIDCScope if isOIDCRequest.",
-    "references/scope-resolution.md 'Algorithm' Step 1 (L11-41) — candidate set = client.getClientScopes(default=true) ∪ {client}; with scope=openid, the param contains only `openid` which is stripped (L153-155), so no optional scopes are added.",
-    "references/scope-resolution.md L114-121 — `ClientScopeModel.isIncludeInTokenScope()` defaults to true when attribute missing; built-ins `roles`, `web-origins`, `basic`, `acr` ship with explicit `false` and are absent from `scope` despite being applied."
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 2 (L96-98)",
+      "what_it_let_you_commit": "scope claim = DCSC.getScopeString of allowed scopes whose isIncludeInTokenScope is true, with openid re-attached for OIDC; absent attribute defaults to true."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 6 (L119-127)",
+      "what_it_let_you_commit": "fullScopeAllowed=false on adv2-client doesn't reduce the scope set; it only affects role intersection. So scope claim is identical to what fullScopeAllowed=true would produce."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 10 (L145-153)",
+      "what_it_let_you_commit": "Hedge order: allowedClientScopes is a Set; getScopeString iterates and joins by space → non-openid token order is HashSet-iteration order, not deterministic from config."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "Algorithm Step 1 (L11-46)",
+      "what_it_let_you_commit": "Candidate set = client.getClientScopes(default=true) ∪ {client}. scopeParam='openid' adds no optional scope (openid is OIDC marker, not a registered scope name)."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "getScopeString (L104-117)",
+      "what_it_let_you_commit": "Filter out ClientModel (drops the adv2-client ClientModel but NOT the ClientScope named 'adv2-client'); filter by isIncludeInTokenScope; attachOIDCScope prepends 'openid' if absent — so openid is first."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "include.in.token.scope defaults (L119-126)",
+      "what_it_let_you_commit": "basic, acr, roles, web-origins, service_account explicitly false → out. email/profile/offline_access have no attribute → in. Confirms adv2-scope-attr-unset (no attribute) defaults to true."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "Edge cases — 'openid in the param' (L158-160)",
+      "what_it_let_you_commit": "openid never has to be a registered client scope; protocol marker only. Stripped from validation iterator at L719-721."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "isAllowed / isClientScopePermittedForUser (L52-67)",
+      "what_it_let_you_commit": "None of adv2-client's default scopes have scope-mapping roles (realm scopeMappings only ties offline_access→offline_access; clientScopeMappings only touches account/account-console). Empty role mapping → universal pass (DCSC.L270-300 'roles is empty → true'). So all 10 default scopes survive isAllowed regardless of adv2-user's roles."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "fullScopeAllowed interaction (L139-148)",
+      "what_it_let_you_commit": "Explicit confirmation: 'The scope set, mapper set, and `scope` claim are identical for full-scope and restricted clients with the same scope param.'"
+    }
   ],
-  "reasoning": [
-    "1. Identify request: grant_type=password to `adv-2` realm for `adv2-client`, `scope=openid`.",
-    "2. Candidate set (Step 1): defaults attached to `adv2-client` (L658-669) = {adv2-scope-attr-true, adv2-client (scope), web-origins, acr, roles, profile, basic, email, adv2-scope-attr-false, adv2-scope-attr-unset} ∪ {ClientModel adv2-client itself}. Param is `openid`, which is stripped from the optional-scope iteration (scope-resolution.md L153-155); no optional scopes added.",
-    "3. Step-2 isAllowed filter: each scope's role scope mappings are empty (custom adv2-* scopes define no `scopeMappings`; built-in profile/email/acr/roles/web-origins/basic typically have empty scope mappings), so `isClientScopePermittedForUser` returns true universally (scope-resolution.md L55-56). The ClientModel always passes (L54). All candidates survive into `allowedClientScopes`.",
-    "4. getScopeString filter A (NOT instanceof ClientModel, DCSC.L200): drops the ClientModel `adv2-client`. The separate ClientScopeModel named `adv2-client` (L890-898) is NOT a ClientModel and survives — this scope is the L200 probe per its own description.",
-    "5. getScopeString filter B (isIncludeInTokenScope): keep adv2-scope-attr-true (true, L1423), adv2-client scope (true, L894), profile (true, L1094), email (true, L905), adv2-scope-attr-unset (attribute missing → default true per invariant 2 + ClientScopeModel.java:109-112). Drop web-origins (false, L1498), acr (false, L1070), roles (false, L1434), basic (false, L1328), adv2-scope-attr-false (false, L839).",
-    "6. attachOIDCScope: original request had `openid` so `TokenUtil.isOIDCRequest` returns true; `openid` is prepended (scope-resolution.md L109-110). Result set = {openid, profile, email, adv2-scope-attr-true, adv2-client, adv2-scope-attr-unset}. openid first.",
-    "7. Inter-scope order of the non-openid tokens: `allowedClientScopes` is a set on DCSC (scope-resolution.md L4) and `getScopeString` joins via `.map(name).join(\" \")` with no documented ordering; consistent with invariant 10's HashSet-iteration warning. Hedge with citation rather than commit a specific permutation."
-  ],
-  "fixture_target_compliance_note": "Satisfies prediction-target.md's three-dimension rubric. (1) Set membership: every name in the candidate list {openid, profile, email, basic, acr, roles, web-origins, adv2-scope-attr-unset, adv2-scope-attr-true, adv2-scope-attr-false, adv2-client} is labeled in/out with a citation — IN: openid, profile, email, adv2-scope-attr-true, adv2-client, adv2-scope-attr-unset; OUT: basic, acr, roles, web-origins, adv2-scope-attr-false. (2) openid position: first (prepended by attachOIDCScope). (3) Inter-scope order: explicit hedge citing SKILL.md invariant 10 and scope-resolution.md's lack of an order contract for `getScopeString`'s set iteration. Per the rubric this counts as a structurally complete pass even if the on-the-wire permutation differs from the example string."
+  "reasoning": {
+    "step_1_candidates": "scopeParam='openid'. TokenManager.getRequestedClientScopes seeds candidates from client.getClientScopes(default=true) ∪ {client}. adv2-client's defaultClientScopes = [adv2-scope-attr-true, adv2-client (scope), web-origins, acr, roles, profile, basic, email, adv2-scope-attr-false, adv2-scope-attr-unset]. The 'openid' token is stripped by isValidScope as the OIDC marker, then the post-strip loop iterates an empty set → no optional scope added. Dedup rule (L656-660) doesn't fire because scopeParam has no 'name:' prefix. Candidate set = 10 scopes + adv2-client ClientModel.",
+    "step_2_isAllowed": "adv2-client.fullScopeAllowed=false. isAllowed calls isClientScopePermittedForUser per scope. None of the 10 default scopes carry scope-mapping roles in this realm export (scopeMappings only contains offline_access→offline_access; clientScopeMappings only the account family). Empty roles → universal pass. The adv2-client ClientModel passes by virtue of 's instanceof ClientModel'. All 11 entries survive.",
+    "step_3_getScopeString": "Apply DCSC.L200 filter (drop instanceof ClientModel): removes the adv2-client ClientModel. The ClientScope named 'adv2-client' is a ClientScopeModel and is NOT removed. Apply isIncludeInTokenScope filter: per realm-config, include.in.token.scope = false on basic / acr / roles / web-origins / adv2-scope-attr-false (these drop); = true on adv2-scope-attr-true / adv2-client (scope) / email / profile (these keep); attribute absent on adv2-scope-attr-unset → defaults true (keeps). Result set = {profile, email, adv2-scope-attr-true, adv2-client, adv2-scope-attr-unset}. attachOIDCScope prepends 'openid' because the auth-session SCOPE note ('openid') is an OIDC request and openid is not already present.",
+    "step_4_order": "getScopeString joins names of the Stream produced from allowedClientScopes (a Set<ClientScopeModel>). attachOIDCScope ensures openid is prepended → openid is first deterministically. The order of {profile, email, adv2-scope-attr-true, adv2-client, adv2-scope-attr-unset} is HashSet iteration order over ClientScopeModel hash codes — invariant 10 declares this not contract-derivable."
+  },
+  "fixture_target_compliance_note": "Prediction target requires (1) explicit in/out for every name in {openid, profile, email, basic, acr, roles, web-origins, adv2-scope-attr-unset, adv2-scope-attr-true, adv2-scope-attr-false, adv2-client}, (2) openid position, (3) either an inter-scope permutation or a citation-backed invariant-10 hedge. All three are addressed: (1) committed in committed_value.set_membership; (2) 'first', backed by attachOIDCScope in scope-resolution.md L114-116; (3) hedged with invariant 10 + Set semantics at scope-resolution.md L106-117. The 'adv2-client' entry refers to the ClientScope of that name (kept), not the ClientModel of that name (filtered at DCSC.L200) — both exist in the realm. organization, address, phone, offline_access, microprofile-jwt, service_account, role_list, saml_organization are not relevant because scopeParam contains no token that matches an optional/dynamic scope; service_account is not auto-attached because serviceAccountsEnabled=false."
 }

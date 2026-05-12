@@ -1,6 +1,6 @@
 # Keycloak IGA Attestation Units
 
-Self-contained spec for the **16 admin-attestable data structures** that fully cover Keycloak 26.5.5 OIDC token construction. An attestation chain over these 16 units gives the token signing service a complete, non-cherry-pickable guarantee of every input that produced any access token, ID token, userinfo response, or introspection response.
+Self-contained spec for the **18 admin-attestable data structures** that fully cover Keycloak 26.5.5 OIDC token construction. An attestation chain over these 18 units gives the token signing service a complete, non-cherry-pickable guarantee of every input that produced any access token, ID token, userinfo response, or introspection response.
 
 Verified against Keycloak **26.5.5**. Out of scope: authentication, signing keys, sessions, hash claims (`at_hash`, `c_hash`, `s_hash`), custom (non-built-in) protocol mappers' input dependencies.
 
@@ -28,7 +28,7 @@ Every attestation, regardless of unit type, wraps a `payload` in this envelope:
 
 ```json
 {
-  "unit_type": "<one of the 16 unit types>",
+  "unit_type": "<one of the 18 unit types>",
   "schema_version": 1,
   "realm_id": "<UUID of the realm; identical to payload.realm_id>",
   "target_id": "<primary key of the parent entity for this attestation>",
@@ -52,11 +52,11 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 ---
 
-# Definition bundles (units 1–7)
+# Definition bundles (units 1–7, 17)
 
 ## 1. `realm_config`
 
-**Trigger:** edit realm name (changes `iss`), edit token lifespans (changes `exp`), edit frontend URL (changes `iss`).
+**Trigger:** edit realm name (changes `iss`), edit token lifespans (changes `exp`), edit frontend URL (changes `iss`), flip `organizationsEnabled` (silences every `organization` claim realm-wide).
 
 **Source tables:** `REALM`, `REALM_ATTRIBUTE` (filtered).
 
@@ -76,7 +76,9 @@ The signing service re-runs this same canonicalization against the live DB befor
   "offline_session_max_lifespan_enabled": "boolean",
   "offline_session_max_lifespan_seconds": "integer",
   "attributes": [
-    { "name": "frontendUrl", "value": "string" }
+    { "name": "frontendUrl", "value": "string" },
+    { "name": "acr.loa.map", "value": "string" },
+    { "name": "organizationsEnabled", "value": "string" }
   ]
 }
 ```
@@ -89,7 +91,9 @@ The signing service re-runs this same canonicalization against the live DB befor
 | `access_token_lifespan_seconds` | Default lifespan for `exp` (when no client override). |
 | `access_token_lifespan_for_implicit_flow_seconds` | Lifespan for `exp` on implicit-flow tokens. |
 | `sso_*`, `client_session_*`, `offline_session_*` | Cap `exp` via `getTokenExpiration` (TokenManager.L1027). |
-| `attributes` (filtered to `frontendUrl`) | When set, overrides the request URI in `Urls.realmIssuer(...)`, changing `iss`. |
+| `attributes.frontendUrl` | When set, overrides the request URI in `Urls.realmIssuer(...)`, changing `iss`. |
+| `attributes."acr.loa.map"` | JSON map (LoA → ACR string). Realm-level **fallback** for `AcrProtocolMapper` under `Feature.STEP_UP_AUTHENTICATION`: the mapper resolves its LoA→ACR map by consulting per-mapper config (unit 4) first, then the client-level `acr.loa.map` (unit 2) via `AcrUtils.getAcrLoaMap(client)`, and **only when both are absent/empty** does it read this realm-level map via `AcrUtils.getAcrLoaMap(realm)`. In that fallback regime, editing this attribute changes the literal value of the `acr` claim across every issued token. |
+| `attributes.organizationsEnabled` | Per-realm gate on the entire organizations feature. When this attribute is `"false"`, `oidc-organization-membership-mapper` emits nothing — every `organization` claim disappears realm-wide regardless of `USER_GROUP_MEMBERSHIP` / `ORG` state, and dynamic `scope=organization:*` / `scope=organization:<alias>` resolution short-circuits (`references/organizations.md` §1, L6). Sits alongside the server-level `Feature.ORGANIZATION` flag, which is a deploy-time concern and intentionally out of scope; this per-realm toggle, by contrast, is admin-mutable and therefore claim-shape state that must be attested. Emit the canonical value explicitly (rather than relying on absence) so the signing service can verify "disabled" was the attested intent, not a missing attestation. |
 
 **Excluded (intentionally):**
 
@@ -102,7 +106,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 | `not_before` | Validation policy — checked when verifying tokens, not written into them. |
 | Other realm attributes (SMTP, brute-force, password policy, login policy, account-management URL, browser security headers, locale lists) | None reach the OIDC claim map. |
 
-> **Caveat:** if the realm uses the step-up-authentication feature (`Feature.STEP_UP_AUTHENTICATION`), `acr` is written by `AcrProtocolMapper` whose LoA→ACR config lives on the mapper (unit 4), not on the realm. If your fork stores LoA mapping in a realm attribute (e.g. `acr.loa.map`), add it to the filter above.
+> **Caveat:** if the realm uses the step-up-authentication feature (`Feature.STEP_UP_AUTHENTICATION`), `acr` is written by `AcrProtocolMapper`. The mapper's LoA→ACR config is resolved in order: per-mapper config (unit 4), then the client-level `acr.loa.map` attribute (unit 2), then the realm-level `acr.loa.map` attribute (already in the filter above). All three are attested.
 
 ---
 
@@ -149,6 +153,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 | `client_credentials.use_refresh_token` | Default `"false"` → `client_credentials` grant creates TRANSIENT session → `OAuth2GrantTypeBase.L132` nulls `sid` on the access token, propagates to id-token `sid` via `generateIDToken`. |
 | `access.token.lifespan` | Per-client override of `exp`. |
 | `use.lower.case.in.token.response` | Lowercases the `typ` claim (`formatTokenType`). |
+| `acr.loa.map` | JSON map (LoA → ACR string) consumed by `AcrProtocolMapper` via `AcrUtils.getAcrLoaMap(client)` when `Feature.STEP_UP_AUTHENTICATION` is on. Client-level override of the realm-level map (unit 1) and fallback below per-mapper config (unit 4); changes the literal value of the `acr` claim. |
 
 **Excluded (intentionally):**
 
@@ -193,7 +198,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 |---|---|
 | `name` | Joined into the `scope` claim by `DCSC.getScopeString` (DCSC.L188-212) when `include.in.token.scope` is true. |
 | `protocol` | Mapper-set assembly filters mappers by `m.protocol == client.protocol` (DCSC.L322). A scope whose `protocol` isn't `openid-connect` contributes zero mappers to an OIDC token. |
-| `attributes.include.in.token.scope` | Decides whether `name` appears in the `scope` claim. **Default-when-absent is `true`** (`ClientScopeModel.java:109-112`) — emit it explicitly with the canonical value the signing service should compare against. |
+| `attributes.include.in.token.scope` | Decides whether `name` appears in the `scope` claim. **Default-when-absent is `true`** ([`ClientScopeModel.java:109-112`](https://github.com/keycloak/keycloak/blob/26.5.5/server-spi/src/main/java/org/keycloak/models/ClientScopeModel.java#L109-L112) — remote URL at `github.com/keycloak/keycloak` tag `26.5.5`, NOT a local file) — emit it explicitly with the canonical value the signing service should compare against. |
 
 **Excluded:**
 
@@ -301,9 +306,9 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 | Field | Justification |
 |---|---|
-| `name` | Written into the group claim by `GroupMembershipMapper`. |
+| `name` | Written into the group claim by `GroupMembershipMapper`. (For org-backed groups the `organization` claim emits the `ORG.alias`, not this column — see unit 17.) |
 | `parent_group_id` | (a) `GroupMembershipMapper` builds the slash-separated path by walking parents, so renaming or reparenting a parent changes the emitted path; (b) `RoleUtils.addGroupRoles` recurses on `parent_group`, so a user in a subgroup inherits roles from each ancestor's `GROUP_ROLE_MAPPING`. |
-| `type` | `OrganizationMembershipMapper` only emits org info for memberships in groups with `type = ORGANIZATION` (KC 26.0+). |
+| `type` | Membership-filter discriminator only — not a claim source. `OrganizationMembershipMapper` filters to `type = ORGANIZATION` to decide *whether* an `organization` claim is emitted for this group; the emitted value comes from the linked `ORG` row attested by unit 17 (`references/organizations.md` §1, §3). Flipping `type` between `REALM` and `ORGANIZATION` thus switches the mapper on/off for this group and is a claim-shape gate independent of the org-row content. (KC 26.0+.) |
 
 **Notes:**
 
@@ -313,7 +318,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 | Field | Why excluded |
 |---|---|
-| `GROUP_ATTRIBUTE` rows | No built-in mapper reads group attributes. (`OrganizationMembershipMapper` reads from the `ORG` table, not group attributes.) Add to this unit if your fork has a custom group-attribute mapper. |
+| `GROUP_ATTRIBUTE` rows | No built-in mapper reads group attributes. `OrganizationMembershipMapper` reads `OrganizationModel.getAlias()` from the `ORG` table (unit 17), not `KEYCLOAK_GROUP.name` or `GROUP_ATTRIBUTE` on the backing group. Add to this unit if your fork has a custom group-attribute mapper. |
 
 ---
 
@@ -370,7 +375,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 ---
 
-# Linkage sets (units 8–16)
+# Linkage sets (units 8–16, 18)
 
 Every linkage set hashes the **complete** child-id collection for one parent. Adding or removing a row changes the hash. Per-row attestation is forbidden — it cannot detect deletions.
 
@@ -568,6 +573,79 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 ---
 
+## 17. `organization_definition`
+
+**Trigger:** rename an organization (changes the `organization` claim value), enable/disable an organization (gates whether the mapper emits for its members), reparent the backing group (changes which `KEYCLOAK_GROUP` row drives membership lookup).
+
+**Source tables:** `ORG`. (`ORGANIZATION_ATTRIBUTE` is **not** a table at Keycloak 26.5.5 per `keycloak-entities/references/entities.md §16` — only `org`, `org_domain`, `org_invitation` exist. If the `addOrganizationAttributes=true` mapper config is in use and your KC version stores org attributes in a child table, extend this unit accordingly. See open item below.)
+
+**Payload schema:**
+
+```json
+{
+  "org_id": "string",
+  "realm_id": "string",
+  "alias": "string",
+  "enabled": "boolean",
+  "group_id": "string"
+}
+```
+
+**Why each field is in:**
+
+| Field | Justification |
+|---|---|
+| `alias` | The literal value emitted in the `organization` claim by `oidc-organization-membership-mapper`. Under the default mapper config (`claim.name=organization`, `multivalued=true`, no `addOrganizationId` / `addOrganizationAttributes`), the claim is a JSON array of alias strings — empirically anchored in `tests/token-construction/adversarial-6/actual-token-wildcard.json` (`"organization": ["globex", "acme"]`). Renaming `ORG.alias` silently mutates the claim value across every issued token. `references/organizations.md` §1, §3.2, §3.3. |
+| `enabled` | Gates whether the mapper emits this org's alias — per-org filter inside `OrganizationMembershipMapper.resolveValue` (`references/organizations.md` §1.1, source-traced). Disabling an org suppresses its alias from the claim without touching `USER_GROUP_MEMBERSHIP`. **Cross-unit dependency on unit 4.** The gate only fires in the mapper's `multivalued=true` branch (the OOTB default). When the mapper config has `multivalued=false`, `resolveValue` short-circuits to `organizations.get(0).getAlias()` before the `isEnabled()`/`isMember()` filter loop, so `ORG.enabled=false` can still emit if it sits at index 0. The unit-17 attestation alone is therefore *necessary but not sufficient* for the suppression guarantee — the signing service must additionally verify that unit 4 attests `multivalued=true` on every reachable `oidc-organization-membership-mapper`. |
+| `group_id` | FK to `KEYCLOAK_GROUP.id`. Binds the org definition to the backing group whose `type = ORGANIZATION` (unit 6) and whose membership rows (unit 9) determine which users are in this org. The graph walk uses this link in reverse: each visited group with `type=ORGANIZATION` is matched to an `org` row via this FK. |
+
+**Also load-bearing for dynamic-scope resolution.** `tryResolveDynamicClientScope("organization:<alias>", user, session)` reads `ORG.alias` to decide whether a `scope=organization:<alias>` request is valid. An unknown alias produces `OAuthErrorException.INVALID_SCOPE` → HTTP 400 pre-flight (`references/organizations.md` §3.3, §4). Renaming `alias` therefore also changes **which scope-param strings the token endpoint accepts at all**, not merely the claim value of issued tokens.
+
+**Excluded:**
+
+| Field | Why excluded |
+|---|---|
+| `description` / display fields | Admin UI only. |
+| `org_invitation` rows | Pre-issuance state (pending invitations); reaches no claim. |
+
+**Open item.** The `addOrganizationAttributes=true` / `addOrganizationId=true` mapper flags are documented (`references/organizations.md` §1 final paragraph, §Open items L235) but not fixture-anchored. They would change the claim shape from `["alias"]` to a per-org object map. If your deployment enables either flag, audit the mapper's source to see which `OrganizationEntity` fields/tables it reads, and extend this unit's payload to cover them.
+
+---
+
+## 18. `organization_domain_set`
+
+**Trigger:** add or remove a verified email domain to/from organization O.
+
+**Source tables:** `ORG_DOMAIN`.
+
+**Payload schema:**
+
+```json
+{
+  "org_id": "string",
+  "realm_id": "string",
+  "domains": [
+    { "name": "string", "verified": "boolean" }
+  ]
+}
+```
+
+**Why this is in.**
+
+`ORG_DOMAIN` is a linkage set, not a definition bundle, because per-row attestation cannot detect deletions of domain rows. The complete `(name, verified)` set per org is hashed.
+
+Two reasons the set affects claim shape:
+
+1. **Auto-routing at user-creation time.** Broker first-login and admin user-creation paths use `ORG_DOMAIN.name` to auto-route users with email `@<domain>` into the matching org. The resulting `USER_GROUP_MEMBERSHIP` row is captured by unit 9, but the routing decision itself depends on the attested domain set. This unit is required only when a token issuance flow creates a user mid-flight (parallel to unit 16's user-creation carve-out); for steady-state issuance against an already-routed user, unit 9 alone suffices.
+2. **`addOrganizationAttributes=true` mapper config.** When this mapper flag is set, `OrganizationMembershipMapper` is documented to surface org domains as part of the `organization` claim payload (`references/organizations.md` §1 final paragraph, §Open items). Fixture-anchored shape pending; if enabled, this set becomes a direct claim source on steady-state issuance.
+
+**Notes:**
+
+- Sort `domains` by `name` ascending.
+- `verified` is hashed alongside `name` because a re-verification toggle is admin-attestable and may gate auto-routing.
+
+---
+
 # Verification — graph walk at token-issuance time
 
 Given `(user U, client C, scopeParam, surface)`, the signing service walks this graph against the live DB and the attestation store. For each node visited, it (a) recomputes the canonical hash from current rows, (b) compares to the latest `APPROVED` attestation, (c) verifies approver signatures. Any mismatch → refuse to sign.
@@ -599,14 +677,39 @@ user_group_membership_set(U)                         ← unit 9
 
 groups_to_walk ← all groups in user_group_membership_set(U)
 visited_groups ← ∅
+visited_orgs ← ∅
 while groups_to_walk non-empty:
     G ← pop(groups_to_walk)
     if G ∈ visited_groups: continue
     visited_groups += G
     group_definition(G)                              ← unit 6
     group_role_mapping_set(G)                        ← unit 10
+    if group_definition(G).type == ORGANIZATION:
+        # Match the backing group to its org row (org.group_id = G).
+        # The org's alias is the literal value the `organization` claim
+        # carries for this membership — see references/organizations.md §1.
+        O ← lookup_org_by_group_id(G)
+        organization_definition(O)                   ← unit 17
+        visited_orgs += O
     if group_definition(G).parent_group_id != null:
         groups_to_walk += parent_group_id
+
+# Domain set is required when (a) the request creates a user mid-issuance
+# (broker first-login / admin user-creation) — auto-routing reads it — or
+# (b) any visited org's mapper config has addOrganizationAttributes=true.
+# For steady-state issuance against an already-routed user with the default
+# mapper config, this loop is a no-op.
+for each org O ∈ visited_orgs:
+    if creating_user_mid_flight or any_mapper_addOrganizationAttributes(O):
+        organization_domain_set(O)                   ← unit 18
+
+# Dynamic-scope resolution path: if scopeParam contains `organization:<alias>`
+# or `organization:*`, the resolver reads ORG.alias to decide acceptance
+# (`organization:<alias>` rejected pre-flight if alias unknown — see
+# references/organizations.md §3.3, §4). The unit-17 attestations above cover
+# this when the user is a member of the named org; for `organization:*` no
+# additional walk is needed (every alias the user holds is already in
+# visited_orgs via the group walk).
 
 roles_to_walk ← user_role_mapping_set(U).role_ids
               ∪ ⋃ { group_role_mapping_set(G).role_ids : G ∈ visited_groups }
@@ -642,7 +745,7 @@ These are state surfaces that either don't reach token claims, or sit upstream o
 - **`USER_CONSENT` / `USER_CONSENT_CLIENT_SCOPE`** — gates whether the request *fails*, doesn't change the claims map.
 - **`IDENTITY_PROVIDER` / `IDENTITY_PROVIDER_MAPPER` / `FEDERATED_IDENTITY`** — broker login. IDP mappers run at login and write into `USER_ATTRIBUTE` / `USER_ROLE_MAPPING`, which units 7/8 already capture.
 - **`fed_user_*`** — if external user storage is in use, you'll need parallel "federated user identity" / "federated user role-mapping set" units (mirroring 7/8) since these tables have no FKs and won't be picked up by unit 7's joins.
-- **Organizations** (`ORG`, `ORG_DOMAIN`, KC 25+) — if `OrganizationMembershipMapper` reads org name / domains for the `organization` claim, add an "org definition" unit (org row + its exclusive `ORG_DOMAIN` children). Org *membership* is already covered by unit 9 (rows in `USER_GROUP_MEMBERSHIP` to a `KEYCLOAK_GROUP.type = ORGANIZATION`).
+- **`ORG_INVITATION`** (KC 26.5+) — pending org invitations. Pre-issuance state; reaches no claim. Unit 17 covers the org row itself; org membership is covered by unit 9 (rows in `USER_GROUP_MEMBERSHIP` to a `KEYCLOAK_GROUP.type = ORGANIZATION`); the alias and enable-state come from unit 17; the verified-domain set comes from unit 18.
 - **Sessions** (`offline_user_session`, `offline_client_session`, `revoked_token`) — Infinispan-only since 26.0; not part of token *construction*.
 - **`at_hash` / `c_hash` / `s_hash` / `jti`** — computed over the encoded JWS or generated, not from the claims map. Not subject to admin attestation.
 - **Custom (non-built-in) mappers' input dependencies** — every field excluded above was excluded *for the built-in mapper set*. If a custom mapper reads e.g. `KEYCLOAK_ROLE.description` or `CLIENT.root_url`, expand the relevant unit and document the dependency.
@@ -669,3 +772,5 @@ These are state surfaces that either don't reach token claims, or sit upstream o
 | 14 | `client_scope_mapper_set` | Linkage set | scope UUID | Add/remove mapper on scope |
 | 15 | `scope_role_allowlist_set` | Linkage set | client OR scope UUID | Edit role allowlist |
 | 16 | `realm_default_groups_set` | Linkage set | realm UUID | Add/remove realm default group |
+| 17 | `organization_definition` | Definition bundle | org UUID | Rename org alias / enable / disable / reparent backing group |
+| 18 | `organization_domain_set` | Linkage set | org UUID | Add/remove verified email domain on org |

@@ -1,47 +1,25 @@
-# Diff — adversarial-1 prediction vs actual (re-run 2026-05-07)
+# Diff — adversarial-1 prediction vs actual (regression rerun)
 
 ## Headline
 
 | | Value |
 | --- | --- |
-| Skill prediction (`predicted_collision_claim`) | `UNVERIFIABLE` (skill declines to commit) |
-| Actual on the wire (`actual-token.json`) | `"value-from-zulu"` |
-| Fixture verdict | **fail-by-design** — skill correctly hedges per invariant 10; commit-or-fail bar of `prediction-target.md` is failed AS DESIGNED |
-| vs. prior fresh round | **unchanged** (was `fail-by-design`, still `fail-by-design`) |
+| Skill prediction (`prediction.json`) | `collision_claim`: **UNVERIFIABLE** — mapper-sort tie on equal priority + same-path collision; invariant 10 + post-mapper.md L185-206 designate this as non-committable from the documented contract. |
+| Actual on the wire | `value-from-zulu` (JVM HashSet bucket order) |
+| Fixture verdict | **FAIL-BY-DESIGN — no regression** from the pre-org-docs baseline. The docs edit (new `references/organizations.md`, extension to invariant 10's wording, new invariant 13) does not affect this fixture's seam. Invariant 10 still mandates the hedge; the predictor still applied it correctly. |
 
 ## Harness note
 
-Re-run on 2026-05-07 against the current `keycloak-token-construction/SKILL.md` and references. Fresh-context predictor spawned at the parent level; previous `prediction.json` and `diff.md` were moved out of the fixture directory before spawn so the agent could not read them. Predictor's first write to `prediction.json` is the prediction commitment.
+This rerun used a fresh-context Agent spawned at the parent level, against the post-edit skill text. Forbidden file list explicitly excluded sibling adversarial fixtures (2-6) and this fixture's own `actual-token.json`, `setup.md`, `surprises.md`, `log.txt`, `prediction.before-org-docs.json`, `diff.before-org-docs.md`. The pre-edit prediction and diff are preserved at `prediction.before-org-docs.json` + `diff.before-org-docs.md` for reference.
 
-## Dim 1 — shape
+## Regression check
 
-| Dimension | Skill | Actual | Match? |
-| --- | --- | --- | --- |
-| Type | scalar string (one of two values) | scalar string | ✓ |
-| Present? | yes (gate passes, no null-source) | yes (`"value-from-zulu"`) | ✓ |
-| Element-of-set | `{"value-from-alpha", "value-from-zulu"}` | `"value-from-zulu"` | ✓ |
+Pre-edit (`diff.before-org-docs.md`) verdict: FAIL-BY-DESIGN. Post-edit verdict: **FAIL-BY-DESIGN**. Same shape, same citation invariant. The extension to invariant 10's wording in SKILL.md (mentioning intra-mapper Set iteration via `organizations.md` §5) does not narrow the original mapper-sort-tie hedge — it widens invariant 10's applicability to a sibling case. The predictor's reasoning chain is unchanged.
 
-## Dim 2 — exact value
+## Verdict rationale
 
-| Dimension | Skill | Actual | Match? |
-| --- | --- | --- | --- |
-| Exact value | undecidable | `"value-from-zulu"` | ✗ — skill cannot commit |
+Adv-1's seam (two HardcodedClaim mappers, same priority, same path) is squarely in invariant 10's documented mandate to flag as unverifiable. The actual outcome `value-from-zulu` is reachable only by reading the JVM HashSet bucket iteration, which is outside the contract the skill commits to. A predictor that committed to alpha or zulu would be overfitting to a specific JVM/Keycloak patch version; the documented contract requires the hedge. This is the canonical `fail-by-design` example in the verdict rubric.
 
-The miss is the structural failure mode the fixture is designed to surface. Two `oidc-hardcoded-claim-mapper` mappers on different scopes write the same path with no `priority` set on either; per invariant 10 the discriminant is HashSet iteration on `Set<ProtocolMapperModel>` (not contract-derivable). The fresh predictor cited invariant 10 plus `references/mapper-set-assembly.md`'s "Tie-breaking is non-deterministic" section and refused to commit.
+## Recommendation
 
-## What the predictor ruled out (with citation)
-
-- **`absent`**: both mappers pass `access.token.claim=true`, HardcodedClaim writes a non-null constant, so `JsonInclude.NON_NULL` (invariant 11) cannot drop the claim. ✓ — actual is present.
-- **Array form**: `oidc-hardcoded-claim-mapper` with `jsonType.label="String"` and no `multivalued` config writes a scalar; second writer overwrites first per `post-mapper.md` "Collision handling" (no merge). ✓ — actual is scalar.
-
-## Verdict
-
-**fail-by-design** — same as prior run. The skill correctly identifies invariant 10 as the gating constraint. Committing here would require a rule sourced from outside the documented Keycloak contract (e.g., empirical observation of HashSet iteration on this specific JVM/JDK). The skill's prescribed action ("require distinct priorities or flag as unverifiable") is the right operator-facing recommendation.
-
-## Skill-edit recommendation from this re-run
-
-None blocking. The fresh predictor's actionable feedback was a minor reinforcement — the HardcodedClaim "scalar overwrite vs merge" semantics had to be inferred from `jsonType.label=String` + absence of merge rules in `post-mapper.md`, rather than read directly. A one-line note under HardcodedClaim ("scalar overwrite at the configured `claim.name`; multivalued config wraps to a list") would make the array-shape rule-out citable rather than inferred. Optional — does not affect this fixture's verdict.
-
-## Comparison to prior round
-
-The prior `diff.md` (preserved at `/tmp/adv-prev-2026-05-07/adv1-diff.md`) reached the same verdict via the same invariant 10 path. No regression; no fix. The skill text on invariant 10 still produces the correct hedge.
+None. This fixture continues to serve as the canonical regression test for invariant 10's mapper-sort-tie hedge. Any future skill edit that weakens or removes invariant 10 (or removes the "require distinct priorities or flag the case as unverifiable" clause) should flip this fixture to fail-skill-gap.

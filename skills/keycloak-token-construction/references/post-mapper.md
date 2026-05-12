@@ -1,5 +1,7 @@
 # Post-mapper transforms
 
+> **All source paths in this document are remote URLs at [github.com/keycloak/keycloak](https://github.com/keycloak/keycloak) tag `26.5.5` — they are NOT files in this working directory.** Shorthand like `TokenManager.L802-807`, `OAuth2GrantTypeBase.java:128-135`, or `ClientCredentialsGrantType.java:111-115` refers to the same upstream sources. Use `WebFetch`; do not look for them on the local filesystem. Full path → URL mapping is in [source-pointers.md](source-pointers.md).
+
 Defines what runs *after* the per-mapper loop on each surface. Only the
 access-token surface has a true post-mapper transform that mutates the claims
 map in-place; the ID-token path adds an indirect post-step via `at_hash`
@@ -85,13 +87,13 @@ type, not on `useRefreshToken` directly. Defaults across grants:
 
 | Grant | `useRefreshToken()` source | Default | Net effect |
 | --- | --- | --- | --- |
-| `client_credentials` | `ClientCredentialsGrantType.java:154-156` reads client attribute `client_credentials.use_refresh_token` (constant `OIDCConfigAttributes.USE_REFRESH_TOKEN_FOR_CLIENT_CREDENTIALS_GRANT`, `server-spi-private/.../OIDCConfigAttributes.java:77`) | `"false"` | TRANSIENT session created at `ClientCredentialsGrantType.java:111-115`; both branches of the `OAuth2GrantTypeBase.L130` check fire → `sid` nulled |
-| `authorization_code`, `password`, `refresh_token` | `OAuth2GrantTypeBase.java:398` | `true` | takes the L120 if-branch entirely; the TRANSIENT check at L130 is never evaluated; `sid` retained |
+| `client_credentials` | [`ClientCredentialsGrantType.java:154-156`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/ClientCredentialsGrantType.java#L154-L156) reads client attribute `client_credentials.use_refresh_token` (constant `OIDCConfigAttributes.USE_REFRESH_TOKEN_FOR_CLIENT_CREDENTIALS_GRANT`, [`server-spi-private/.../OIDCConfigAttributes.java:77`](https://github.com/keycloak/keycloak/blob/26.5.5/server-spi-private/src/main/java/org/keycloak/protocol/oidc/OIDCConfigAttributes.java#L77)) | `"false"` | TRANSIENT session created at [`ClientCredentialsGrantType.java:111-115`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/ClientCredentialsGrantType.java#L111-L115); both branches of the `OAuth2GrantTypeBase.L130` check fire → `sid` nulled |
+| `authorization_code`, `password`, `refresh_token` | [`OAuth2GrantTypeBase.java:398`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/OAuth2GrantTypeBase.java#L398) | `true` | takes the L120 if-branch entirely; the TRANSIENT check at L130 is never evaluated; `sid` retained |
 
 Because `generateIDToken` reads `idToken.setSessionId(accessToken.getSessionId())`
 at TokenManager.L1275 / L1290 *after* the access-token nulling has already
 fired, the null propagates to the id_token's `sid` as well. With Keycloak's
-`JsonInclude.NON_NULL` serializer (`core/.../util/JsonSerialization.java:48`),
+`JsonInclude.NON_NULL` serializer ([`core/.../util/JsonSerialization.java:48`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/util/JsonSerialization.java#L48)),
 null `sid` is dropped from the wire JSON entirely — verifiers comparing a
 captured token to the in-memory model must treat absent-on-wire as equivalent
 to null-in-memory.
@@ -118,9 +120,9 @@ Three other code paths null `sid` post-construction. None are exercised by
 the fixtures in this skill, but a verifier handling those flows must model
 the same propagation:
 
-- `services/src/main/java/org/keycloak/protocol/oidc/tokenexchange/StandardTokenExchangeProvider.java:280` — token-exchange flows.
-- `services/src/main/java/org/keycloak/protocol/oidc/tokenexchange/V1TokenExchangeProvider.java:348` — legacy v1 token exchange.
-- `services/src/main/java/org/keycloak/authorization/authorization/AuthorizationTokenService.java:369` — RPT (Authorization Service) flows.
+- [`StandardTokenExchangeProvider.java:280`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/tokenexchange/StandardTokenExchangeProvider.java#L280) — token-exchange flows.
+- [`V1TokenExchangeProvider.java:348`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/tokenexchange/V1TokenExchangeProvider.java#L348) — legacy v1 token exchange.
+- [`AuthorizationTokenService.java:369`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/authorization/authorization/AuthorizationTokenService.java#L369) — RPT (Authorization Service) flows.
 
 The trigger logic differs per call site — a verifier must inspect each — but
 the propagation to `id_token.sid` via `generateIDToken` is the same.
@@ -227,13 +229,13 @@ postProcess(token, surface, ctx, grant):
 
 ## See also
 
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:793-810` — `transformAccessToken` and the `restrictRequestedAudience` call site.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:1406-1414` — `restrictRequestedAudience` body.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:1289-1341` — `at_hash`/`c_hash`/`s_hash` are JWS-level, not claim-level.
-- `services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java:290-295` — the audience attribute also gates the role allowlist (upstream of the post-mapper transform).
-- `services/src/main/java/org/keycloak/protocol/oidc/mappers/AudienceResolveProtocolMapper.java` — pre-restrict `aud` builder.
-- `services/src/main/java/org/keycloak/protocol/oidc/grants/OAuth2GrantTypeBase.java:128-135` — transient `setSessionId(null)` site.
-- `services/src/main/java/org/keycloak/protocol/oidc/grants/OAuth2GrantTypeBase.java:398` — `useRefreshToken()` default.
-- `services/src/main/java/org/keycloak/protocol/oidc/grants/ClientCredentialsGrantType.java:111-115, 154-156` — TRANSIENT session decision and `client_credentials.use_refresh_token` read.
-- `server-spi-private/src/main/java/org/keycloak/protocol/oidc/OIDCConfigAttributes.java:77` — `USE_REFRESH_TOKEN_FOR_CLIENT_CREDENTIALS_GRANT` constant (the attribute key).
-- `core/src/main/java/org/keycloak/util/JsonSerialization.java:48` — `JsonInclude.NON_NULL` (why null `sid` is absent on the wire).
+- [`TokenManager.java:793-810`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L793-L810) — `transformAccessToken` and the `restrictRequestedAudience` call site.
+- [`TokenManager.java:1406-1414`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L1406-L1414) — `restrictRequestedAudience` body.
+- [`TokenManager.java:1289-1341`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L1289-L1341) — `at_hash`/`c_hash`/`s_hash` are JWS-level, not claim-level.
+- [`DefaultClientSessionContext.java:290-295`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java#L290-L295) — the audience attribute also gates the role allowlist (upstream of the post-mapper transform).
+- [`AudienceResolveProtocolMapper.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/AudienceResolveProtocolMapper.java) — pre-restrict `aud` builder.
+- [`OAuth2GrantTypeBase.java:128-135`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/OAuth2GrantTypeBase.java#L128-L135) — transient `setSessionId(null)` site.
+- [`OAuth2GrantTypeBase.java:398`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/OAuth2GrantTypeBase.java#L398) — `useRefreshToken()` default.
+- [`ClientCredentialsGrantType.java:111-115`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/ClientCredentialsGrantType.java#L111-L115), [`154-156`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/grants/ClientCredentialsGrantType.java#L154-L156) — TRANSIENT session decision and `client_credentials.use_refresh_token` read.
+- [`OIDCConfigAttributes.java:77`](https://github.com/keycloak/keycloak/blob/26.5.5/server-spi-private/src/main/java/org/keycloak/protocol/oidc/OIDCConfigAttributes.java#L77) — `USE_REFRESH_TOKEN_FOR_CLIENT_CREDENTIALS_GRANT` constant (the attribute key).
+- [`JsonSerialization.java:48`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/util/JsonSerialization.java#L48) — `JsonInclude.NON_NULL` (why null `sid` is absent on the wire).

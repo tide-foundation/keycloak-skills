@@ -1,27 +1,70 @@
 {
-  "client_credentials": {
-    "predicted_sid_presence": "absent",
-    "predicted_jti_prefix": "trrtcc",
-    "reasoning": "1. Per SKILL.md invariant 12, `sid` is nulled post-`transformAccessToken` when both (a) the grant's `useRefreshToken()` returns false AND (b) the encoded token id resolves to `AccessTokenContext.SessionType.TRANSIENT`. 2. Per references/post-mapper.md 'Access-token: transient-session `sid` nulling' table, for `client_credentials` the source is `ClientCredentialsGrantType.java:154-156`, reading client attribute `client_credentials.use_refresh_token` (`OIDCConfigAttributes.java:77`); default is `\"false\"`. 3. Inspecting realm-config.json for `adv3-client` at line 693-697, `attributes` contains only `realm_client`, `backchannel.logout.session.required`, and `backchannel.logout.revoke.offline.tokens` — `client_credentials.use_refresh_token` is NOT set, so the default `\"false\"` applies. 4. Per the same table, with `use_refresh_token=false` the client_credentials grant creates a TRANSIENT session at `ClientCredentialsGrantType.java:111-115`, so both conditions of L130 hold → `accessToken.setSessionId(null)` at L132 fires. 5. Per SKILL.md invariant 11, `JsonInclude.NON_NULL` drops null `sid` from the wire → `predicted_sid_presence=absent`. 6. Per references/post-mapper.md 'Diagnostic — read the `jti` prefix' table, TRANSIENT session-type prefix is `trrtcc:` (transient/refresh-token-context/client-credentials). The request is `grant_type=client_credentials` with `scope=openid` (no `offline_access`), so the session type is TRANSIENT not OFFLINE. SKILL.md 'When to consult fixtures' explicitly anchors this prefix on positive control `token-openid.json`."
+  "committed_value": {
+    "client_credentials": {
+      "predicted_sid_presence": "absent",
+      "predicted_jti_prefix": "trrtcc",
+      "reasoning": "Grant is client_credentials. SKILL.md invariant 12 + references/post-mapper.md 'Access-token: transient-session sid nulling' state that for client_credentials, useRefreshToken() reads the client attribute client_credentials.use_refresh_token (OIDCConfigAttributes.java:77), default 'false'. The adv3-client config (realm-config.json L675-697) defines only attributes {realm_client, backchannel.logout.session.required, backchannel.logout.revoke.offline.tokens} — client_credentials.use_refresh_token is unset, so it defaults to false. ClientCredentialsGrantType.java:111-115 therefore creates a TRANSIENT session, both branches of the OAuth2GrantTypeBase.L130 check fire, and accessToken.setSessionId(null) is called at L132. JsonInclude.NON_NULL (core/.../util/JsonSerialization.java:48, invariant 11) drops the null sid from the wire JSON → sid absent. jti prefix decomposition (prediction-target table + invariant 12): session type TRANSIENT='tr', refresh-token-context default='rt' (the encodeTokenId 'rt' tag, since the diagnostic table in post-mapper.md L99-108 anchors trrtcc: for transient client_credentials), grant family 'cc' for client_credentials → 'trrtcc'. Directly anchored by fixture token-openid.json (transient, sid absent, jti 'trrtcc:') per invariant 12 closing sentence and post-mapper.md L111-113."
+    },
+    "password": {
+      "predicted_sid_presence": "present",
+      "predicted_jti_prefix": "onrtro",
+      "reasoning": "Grant is Resource Owner Password Credentials. SKILL.md invariant 12 + references/post-mapper.md 'Defaults across grants' table row 2 state that for authorization_code/password/refresh_token, OAuth2GrantTypeBase.java:398 hard-codes useRefreshToken()=true. The L120 if-branch in OAuth2GrantTypeBase.processTokenResponse fires (generateRefreshToken path), so the L130 TRANSIENT check is never evaluated and accessToken.setSessionId(null) is never called. sid is retained on the access token, and (per invariant 7) propagates into id_token via generateIDToken L1275/L1290 → sid present on the wire. Request asks scope=openid only; offline_access is not requested, so the session is ONLINE, not OFFLINE. jti prefix decomposition (prediction-target table + invariant 12): session type ONLINE='on', refresh-token-context default='rt', grant family 'ro' for ROPC password → 'onrtro'. The 'on' and 'rt' letters are empirically anchored by fixture token-with-refresh-openid.json (online, sid present, jti 'onrtcc:') per invariant 12 closing sentence; the 'ro' letter is named in SKILL.md invariant 12 jti-prefix legend and the prediction-target table as the ROPC password discriminator (the unique letter that distinguishes password from cc='client_credentials' / co='authorization_code')."
+    }
   },
-  "password": {
-    "predicted_sid_presence": "present",
-    "predicted_jti_prefix": "onrtro",
-    "reasoning": "1. Per SKILL.md invariant 12 and references/post-mapper.md 'Access-token: transient-session `sid` nulling' table, for `password` (ROPC) grant `useRefreshToken()` is sourced from `OAuth2GrantTypeBase.java:398` and defaults to `true`. 2. With `useRefreshToken()=true`, the L120 if-branch is taken in `OAuth2GrantTypeBase.processTokenResponse`; the L130 TRANSIENT check is never evaluated; `sid` is retained → `predicted_sid_presence=present`. 3. Per the diagnostic prefix table, persistent (non-transient) sessions use `onrt…` (ONLINE / refresh-token-context). The request asks for `scope=openid` only (no `offline_access`), so the session is ONLINE not OFFLINE. 4. Per SKILL.md invariant 12, the grant-family two-letter codes named are `cc` (client-credentials) and `ro` (ROPC); `cc` is anchored by both positive-control fixtures (`trrtcc:` and `onrtcc:`). The ROPC password grant must use a different two-letter family code; the only one named for ROPC in invariant 12 is `ro`. prediction-target.md's example explicitly states `onrtro:` for online-ROPC-password-with-refresh. Therefore the prefix is `onrtro`."
-  },
-  "shapes_ruled_out_by_skill": {
-    "client_credentials sid present / onrtcc": "SKILL.md invariant 12 + references/post-mapper.md table: `client_credentials.use_refresh_token` defaults to `\"false\"` and is NOT set on `adv3-client`'s attributes block (realm-config.json L693-697). The TRANSIENT-nulling branch fires; `sid` is null in memory and dropped by `JsonInclude.NON_NULL` (invariant 11).",
-    "client_credentials oftcc (offline)": "references/post-mapper.md diagnostic prefix table: `of` denotes OFFLINE. The request scope is `openid` only — `offline_access` is in `optionalClientScopes` but not requested in request-cc.json's `scope` field, so the session is TRANSIENT not OFFLINE.",
-    "password sid absent / trrtro": "references/post-mapper.md table: `password` grant inherits `useRefreshToken()=true` from `OAuth2GrantTypeBase.java:398`. The L120 if-branch fires unconditionally; the L130 TRANSIENT path is never evaluated. No nulling occurs; `sid` is present.",
-    "password onrtpw or invented family code": "prediction-target.md 'Plausible outputs (the trap menu)' #3 explicitly flags inventing letters as a trap. SKILL.md invariant 12 names `ro` for ROPC; `pw` is not in the prefix-namespace.",
-    "either token cc/ft (refresh-token-free)": "Per references/post-mapper.md table the encoded token id reflects the session classification, which for these defaults yields `rt` for both: client_credentials with the default attribute creates a TRANSIENT session encoded `tr` + `rt` (transient-refresh-token-context); password with `useRefreshToken=true` is `on` + `rt`. Neither condition surfaces a `ft` (refresh-token-free) prefix."
-  },
-  "skill_passages_invoked": [
-    "SKILL.md invariant 12 — `sid` may be nulled post-`transformAccessToken` on the transient branch; cites `OAuth2GrantTypeBase.java:128-135`, `client_credentials.use_refresh_token` default `\"false\"`, and that the rule does not fire for `password`/`authorization_code`/`refresh_token`. Names `trrtcc:` vs `onrtcc:`/`oftcc:` and `ro` (ROPC) prefix codes.",
-    "SKILL.md invariant 11 — `JsonInclude.NON_NULL` drops null claims from the wire (so null `sid` becomes absent on wire).",
-    "SKILL.md 'When to consult fixtures' — anchors `trrtcc:` on `token-openid.json` (transient, sid absent) and `onrtcc:` on `token-with-refresh-openid.json` (persistent, sid present).",
-    "references/post-mapper.md 'Access-token: transient-session `sid` nulling' — paraphrased L120-135 of `OAuth2GrantTypeBase`; defaults table confirming `password` uses `useRefreshToken=true` from `OAuth2GrantTypeBase.java:398` while `client_credentials` reads the client attribute that defaults to `\"false\"`.",
-    "references/post-mapper.md 'Diagnostic — read the `jti` prefix' — three-row table mapping `trrtcc:` → TRANSIENT (sid no), `onrtcc:` → ONLINE (sid yes), `oftcc:` → OFFLINE."
+  "shapes_ruled_out_by_skill": [
+    {
+      "shape": "Both tokens have sid; both prefixes 'onrtcc' or 'onrtro'",
+      "ruled_out_by": "SKILL.md invariant 12 + post-mapper.md L86-89 — adv3-client has no client_credentials.use_refresh_token override, so the default 'false' fires the transient-nulling branch on the cc token. Fixture token-openid.json empirically confirms transient cc → sid absent, prefix 'trrtcc:'."
+    },
+    {
+      "shape": "Neither token has sid",
+      "ruled_out_by": "SKILL.md invariant 12 + post-mapper.md L86-89 — password grant's useRefreshToken() is hard-coded true at OAuth2GrantTypeBase.java:398. The L120 if-branch fires; the TRANSIENT check at L130 is never evaluated; sid is retained. The transient-null path simply does not apply to ROPC password."
+    },
+    {
+      "shape": "Either prefix is 'oftcc:' or 'oftro:' (OFFLINE)",
+      "ruled_out_by": "Neither request includes offline_access in its scope parameter. The realm lists offline_access as an optional client scope for adv3-client (realm-config.json L710-716), but optional scopes are only resolved when explicitly requested (scope-resolution.md). Both requests ask scope=openid only, so neither session is OFFLINE."
+    },
+    {
+      "shape": "Password prefix is 'onrtpw' or any other made-up letter pair",
+      "ruled_out_by": "SKILL.md invariant 12 enumerates the grant-family letters as 'cc / ro / co / …'. 'ro' is the named ROPC discriminator. Inventing 'pw' contradicts invariant 12's enumeration."
+    },
+    {
+      "shape": "Client_credentials sid 'present' on the rationale that 'the session is created server-side'",
+      "ruled_out_by": "SKILL.md invariant 12 explicitly states the null is applied post-transformAccessToken at OAuth2GrantTypeBase.java:128-135, and post-mapper.md L94-97 plus invariant 11 explain JsonInclude.NON_NULL drops it from the wire. Server-side session creation is not the relevant signal — the post-construction null assignment is."
+    }
   ],
-  "fixture_target_compliance_note": "Both pairs commit unconditionally with no hedge. client_credentials → (absent, trrtcc) is sourced from invariant 12 + post-mapper.md's 'Access-token: transient-session `sid` nulling' defaults table + the empirical anchor on `token-openid.json`; the realm-config.json check confirms `adv3-client.attributes` does not set `client_credentials.use_refresh_token`, so the default `\"false\"` applies and the TRANSIENT null branch fires. password → (present, onrtro) is sourced from invariant 12's explicit statement that the rule does not fire for `password` (the L120 if-branch is taken via `OAuth2GrantTypeBase.java:398` default `true`), the diagnostic table's ONLINE row giving `onrt…`, and SKILL.md invariant 12's enumeration of `ro` as the ROPC two-letter family code (further illustrated by prediction-target.md's example `onrtro:`). This satisfies the two-pair commit-or-fail bar."
+  "skill_passages_invoked": [
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 12 (L165-179)",
+      "what_it_let_you_commit": "Conditional sid-nulling rule keyed on (useRefreshToken() == false) AND (encoded session type == TRANSIENT), with both holding by default for client_credentials and neither holding for password. Also enumerates the jti-prefix component letters (tr/on/of × rt/ft × cc/ro/co/...)."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 11 (L156-163)",
+      "what_it_let_you_commit": "JsonInclude.NON_NULL drops null claims from the wire — turns 'sid nulled in memory' into 'sid absent on the wire' for the client_credentials token."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "Invariant 7 (L129-132)",
+      "what_it_let_you_commit": "ID-token sub-aud-iat reset rule. Indirectly relevant: id_token.sid is populated from the (post-null) access-token sid via TokenManager.L1275/L1290, so the propagation direction is documented even though both predictions target the access-token surface."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/post-mapper.md",
+      "lines_or_section": "L57-97 'Access-token: transient-session sid nulling' incl. the Defaults table at L86-89",
+      "what_it_let_you_commit": "Per-grant defaults table: client_credentials → useRefreshToken default 'false' → TRANSIENT created at ClientCredentialsGrantType.java:111-115 → sid nulled; password → useRefreshToken hard-coded true at OAuth2GrantTypeBase.java:398 → L120 if-branch, sid retained."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/post-mapper.md",
+      "lines_or_section": "L99-113 'Diagnostic — read the jti prefix' table",
+      "what_it_let_you_commit": "Anchors trrtcc:=TRANSIENT, onrtcc:=ONLINE, oftcc:=OFFLINE. Combined with invariant 12's enumeration of grant-family letters (cc/ro/co/...), gives the full six-letter decomposition for both grants."
+    },
+    {
+      "file": "Realm config (tests/token-construction/adversarial-3/realm-config.json)",
+      "lines_or_section": "L673-717 adv3-client attributes block",
+      "what_it_let_you_commit": "adv3-client.attributes contains no client_credentials.use_refresh_token key (only realm_client, backchannel.logout.session.required, backchannel.logout.revoke.offline.tokens). Default 'false' therefore applies → transient branch fires for cc."
+    }
+  ],
+  "reasoning": "Walked the construction pipeline end-to-end per grant. (1) Scope resolution: both requests ask scope=openid; adv3-client's default scopes (web-origins, service_account, acr, profile, roles, basic, email) plus the requested openid optional client scope (which is realm-default-optional, plus openid is the OIDC marker re-attached by DCSC.L188-212 — invariant 2). offline_access is NOT requested by either, so neither session is OFFLINE. (2) Mapper-set assembly: union over allowed scopes, filtered by protocol=openid-connect and isEnabled — not load-bearing for sid/jti. (3) Base claims: initToken sets jti (via encodeTokenId), iss, iat, exp, sid (from userSession.getId()), sub (only if transient — invariant 1). (4) Mapper loop: not relevant — no mapper writes sid or jti. (5) Post-mapper: for CC, OAuth2GrantTypeBase.L128-135 nulls accessToken.sid because (a) useRefreshToken()=false (default for cc, no override on adv3-client) AND (b) encoded session type is TRANSIENT. For password, useRefreshToken()=true at OAuth2GrantTypeBase.java:398, L120 if-branch fires, the L130 transient check is never evaluated, sid retained. (6) Wire: NON_NULL drops null sid → absent on cc; sid present on password. jti decomposition: cc → tr+rt+cc=trrtcc; password → on+rt+ro=onrtro. The 'rt' (vs 'ft') letter for both: post-mapper.md's existing diagnostic table uses 'rt' for both the transient cc fixture (trrtcc) and the online cc fixture (onrtcc), so the default refresh-token-context tag is 'rt' in this skill's framing — 'ft' (refresh-token-free) is the non-default mode and not in play for either request here. No ambiguity flagged that requires hedging: invariant 12, the post-mapper.md defaults table, and the diagnostic prefix table jointly determine all four commitments at full specificity.",
+  "fixture_target_compliance_note": "Both required commitments are filled with six-character prefixes and present/absent sid values. No hedge invoked. The 'ro' letter for ROPC is named in SKILL.md invariant 12's enumeration (cc/ro/co/...) — committing on it directly per prediction-target.md L62-65 ('the ro letter for ROPC is not directly anchored by an existing fixture but is named in SKILL.md invariant 12 and is derivable as the only choice that distinguishes the password grant from client_credentials in the prefix-namespace described'). Did not read any forbidden file."
 }

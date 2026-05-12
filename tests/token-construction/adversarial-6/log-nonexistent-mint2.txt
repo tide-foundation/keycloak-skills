@@ -1,0 +1,3 @@
+2026-05-12 03:13:48,973 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Scopes to validate requested scopes against: web-origins acr profile roles basic email
+2026-05-12 03:13:48,973 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Requested scopes: organization:nonexistent
+2026-05-12 03:13:48,974 WARN  [org.keycloak.events] (executor-thread-15) type="LOGIN_ERROR", realmId="310c19f2-4a26-4986-b6e5-f02db9da84af", realmName="adv-6", clientId="adv6-client", userId="null", ipAddress="172.20.0.1", error="invalid_request", reason="Invalid scopes: openid organization:nonexistent", auth_method="oauth_credentials", grant_type="password", client_auth_method="client-secret"

@@ -1,5 +1,7 @@
 # Base claims
 
+> **All source paths in this document are remote URLs at [github.com/keycloak/keycloak](https://github.com/keycloak/keycloak) tag `26.5.5` — they are NOT files in this working directory.** Shorthand like `TokenManager.L983-1015` or `OAuth2GrantTypeBase.java:132` refers to the same upstream sources. Use `WebFetch`; do not look for them on the local filesystem. Full path → URL mapping is in [source-pointers.md](source-pointers.md).
+
 Defines the claims placed on the token *before* any mapper runs, and where
 each is sourced from. Two builders contribute base claims:
 
@@ -123,9 +125,9 @@ introspection fields are added outside this skill's scope.
 
 ## See also
 
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:983-1015` — `initToken`.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:1262-1295` — `generateIDToken`.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:1397` — `formatTokenType`.
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:845-934` — `generateUserInfoClaims`.
-- `core/src/main/java/org/keycloak/representations/AccessToken.java` — claim field declarations.
-- `core/src/main/java/org/keycloak/representations/IDToken.java` — claim field declarations (superclass).
+- [`TokenManager.java:983-1015`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L983-L1015) — `initToken`.
+- [`TokenManager.java:1262-1295`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L1262-L1295) — `generateIDToken`.
+- [`TokenManager.java:1397`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L1397) — `formatTokenType`.
+- [`TokenManager.java:845-934`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L845-L934) — `generateUserInfoClaims`.
+- [`AccessToken.java`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/representations/AccessToken.java) — claim field declarations.
+- [`IDToken.java`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/representations/IDToken.java) — claim field declarations (superclass).

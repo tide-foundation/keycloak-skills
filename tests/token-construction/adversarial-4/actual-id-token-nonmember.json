@@ -1,0 +1,19 @@
+{
+  "acr": "1",
+  "at_hash": "Eg_Gdr6AL7nu1KOOfQqr1w",
+  "aud": "adv4-client",
+  "azp": "adv4-client",
+  "email": "adv4-nonmember@example.invalid",
+  "email_verified": true,
+  "exp": 1778553384,
+  "family_name": "Nonmember",
+  "given_name": "Adv4",
+  "iat": 1778553084,
+  "iss": "http://localhost:8080/realms/adv-4",
+  "jti": "02ab4c34-cebf-5ce3-ff42-fca81093b5fa",
+  "name": "Adv4 Nonmember",
+  "preferred_username": "adv4-nonmember",
+  "sid": "dPt2Kn0OMQ1HiSYHCuyNUUXS",
+  "sub": "2ef94698-e229-41b6-b2d1-6f5b6ae29687",
+  "typ": "ID"
+}

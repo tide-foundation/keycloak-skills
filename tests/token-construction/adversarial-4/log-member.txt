@@ -1,0 +1,16 @@
+2026-05-12 02:31:22,788 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Scopes to validate requested scopes against: web-origins acr organization profile roles basic email
+2026-05-12 02:31:22,788 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Requested scopes: organization
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-15) Loa level when authenticated to client adv4-client: -1
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-15) Level sent in the token to client adv4-client: 1. Original loa from the authentication: 1
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'profile' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'web-origins' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'organization' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'null' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'basic' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'acr' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'roles' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'organization' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.TokenManager] (executor-thread-15) Adding client scope role mappings of client scope 'email' to client 'adv4-client'
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-15) Loa level when authenticated to client adv4-client: -1
+2026-05-12 02:31:22,807 TRACE [org.keycloak.protocol.oidc.mappers.AcrProtocolMapper] (executor-thread-15) Level sent in the token to client adv4-client: 1. Original loa from the authentication: 1
+2026-05-12 02:31:22,810 INFO  [org.keycloak.events] (executor-thread-15) type="LOGIN", realmId="442202bb-3054-4de4-8200-24e2f93e8fa5", realmName="adv-4", clientId="adv4-client", userId="fdda407b-2249-495f-87d2-fea3a95d806d", sessionId="wXmIbqj2q7W7tGvjSLJJNXOG", ipAddress="172.20.0.1", auth_method="openid-connect", token_id="onrtro:3d140088-a1bd-0ec9-5c08-cb336726aa4a", grant_type="password", refresh_token_type="Refresh", scope="openid profile organization organization email", refresh_token_id="4b103f6b-ad09-7c71-88a9-883f83f4739f", client_auth_method="client-secret", username="adv4-member", authSessionParentId="wXmIbqj2q7W7tGvjSLJJNXOG", authSessionTabId="36bzH-5eFro"

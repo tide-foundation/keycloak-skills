@@ -1,0 +1,69 @@
+{
+  "_note": "Organisations and memberships for adv-6, captured separately because partial-export omits them. The GET /organizations endpoint returns its list alphabetised by alias (see adv-4 surprises §1, adv-5 surprises §5). For adv-6 the insertion order (acme FIRST, globex SECOND) happens to coincide with alphabetical order, so the alphabetised return list IS the insertion order here.",
+  "organizations": [
+    {
+      "id": "191ecbc7-20b5-4a2f-a80e-0f4eecb24d87",
+      "name": "Acme Corp",
+      "alias": "acme",
+      "enabled": true,
+      "domains": [
+        {
+          "name": "acme.test",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "id": "83e0bdef-9f42-47ae-98ae-e67688ef31c6",
+      "name": "Globex Inc",
+      "alias": "globex",
+      "enabled": true,
+      "domains": [
+        {
+          "name": "globex.test",
+          "verified": false
+        }
+      ]
+    }
+  ],
+  "memberships": {
+    "acme": [
+      {
+        "id": "44e39190-f5ca-4ae8-ae57-e16a4f7f7ebf",
+        "username": "adv6-multimember",
+        "firstName": "Adv6",
+        "lastName": "Multimember",
+        "email": "adv6-multimember@example.invalid",
+        "emailVerified": true,
+        "enabled": true,
+        "createdTimestamp": 1778555560032,
+        "totp": false,
+        "disableableCredentialTypes": [],
+        "requiredActions": [],
+        "notBefore": 0,
+        "membershipType": "UNMANAGED"
+      }
+    ],
+    "globex": [
+      {
+        "id": "44e39190-f5ca-4ae8-ae57-e16a4f7f7ebf",
+        "username": "adv6-multimember",
+        "firstName": "Adv6",
+        "lastName": "Multimember",
+        "email": "adv6-multimember@example.invalid",
+        "emailVerified": true,
+        "enabled": true,
+        "createdTimestamp": 1778555560032,
+        "totp": false,
+        "disableableCredentialTypes": [],
+        "requiredActions": [],
+        "notBefore": 0,
+        "membershipType": "UNMANAGED"
+      }
+    ]
+  },
+  "insertion_order": [
+    "acme",
+    "globex"
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "committed_value": {
+    "access_token": {
+      "organization_claim_trap_index": 1,
+      "organization_claim_value": null,
+      "scope_claim_literal_string": "openid profile organization email",
+      "scope_claim_multiset": {
+        "openid": 1,
+        "profile": 1,
+        "organization": 1,
+        "email": 1
+      },
+      "organization_in_scope_count": 1
+    },
+    "id_token": {
+      "organization_claim_trap_index": 1,
+      "organization_claim_value": null
+    },
+    "reasoning": {
+      "organization_claim": "references/organizations.md §3.1 (Unqualified scope=organization, static path) — table at L17 plus prose at L77-81: 'The mapper writes the organization claim only when the user has exactly one organisation membership. For zero-membership or multi-membership, the mapper writes null and invariant 11 (NON_NULL) drops the claim.' Cross-anchored with §6 cross-fixture summary: 'tests/token-construction/adversarial-5 — Multi-membership user under unqualified scope=organization → §3.1 (multi → claim absent).' SKILL.md invariant 13(a) names the same path explicitly: 'Unqualified scope=organization (static): emits the claim ONLY when the user is a member of exactly one organisation. Multi-membership and zero-membership both produce a null write → NON_NULL drops the claim.' The realm-config.json mapper config matches the OOTB defaults documented at organizations.md §1 (claim.name=organization, jsonType.label=String, multivalued=true, access/id/introspection.token.claim=true, addOrganizationId/addOrganizationAttributes unset). realm-organizations.json confirms adv5-multimember is a member of two organisations (acme, zeta). The static path triggers (request.json scope param is 'openid organization' — bare, no colon, dedup rule at organizations.md §3.1 L70-74 does not fire). Therefore the mapper writes null → JsonInclude.NON_NULL (SKILL.md invariant 11) drops the key from the wire on the access token. For the ID token, by SKILL.md invariant 7 the ID token's base claims are sourced from the transformed access token; the organization key is not present in the access token, and the same OIDCIDTokenMapper-side mapper hits the same N!=1 branch and writes null again → NON_NULL drops it. Both surfaces: claim absent (trap index 1).",
+      "scope_claim": "SKILL.md invariant 2 — the scope claim is DCSC.getScopeString(): names of allowed client scopes whose isIncludeInTokenScope() is true, with the client itself filtered out (DCSC.L200) and 'openid' re-attached if the original request was OIDC. realm-config.json shows adv5-client default scopes: web-origins, acr, profile, organization, roles, basic, email. Filtering by include.in.token.scope: profile=true, email=true, organization=true; basic=false, acr=false, web-origins=false, roles=false. fullScopeAllowed=false does not affect scope resolution (scope-resolution.md 'fullScopeAllowed interaction' clarification). 'openid' is re-attached by attachOIDCScope. The unqualified scope=organization is the static path; the dedup rule at scope-resolution.md L22-28 does NOT fire (no colon in 'organization'), so the static-default organization scope survives the candidate set. organizations.md §3.1 documents a single-membership side-finding where 'organization' appears twice in the scope claim string; that side-finding is explicitly scoped to 'when Feature.ORGANIZATION is on and the user has exactly one membership' — adv5-multimember has TWO memberships, so the side-finding does not apply. Therefore 'organization' appears exactly ONCE in the scope claim string. organization_in_scope_count = 1. Multiset: openid=1, profile=1, organization=1, email=1. The literal string order is not pinned hard by the skill text (DCSC.getScopeString does a .map(name).join(' ') over the allowed scopes stream, with openid prepended); committed best-guess: 'openid profile organization email'. The order between profile/organization/email is the area where the skill does not pin a contract — see 'highlighted ambiguity' below."
+    }
+  },
+  "shapes_ruled_out_by_skill": {
+    "trap_2_empty_array": "Ruled out by organizations.md §2: 'The wire shape is not [] or {} — it is the absence of the key.' Invariant 11 (NON_NULL) drops null claims from the wire entirely; the mapper never explicitly emits an empty array on the static N!=1 branch.",
+    "trap_3_single_alphabetical": "Ruled out by organizations.md §3.1 table (multi-member static path = claim absent, not 'pick first alias').",
+    "trap_4_single_insertion_first": "Ruled out by organizations.md §3.1 table (same: multi-member static path = absent).",
+    "trap_5_both_alphabetical": "Ruled out by organizations.md §3.1: multi-member static path produces a null write, not an array of both aliases. The both-aliases shapes are reachable only on the wildcard path scope=organization:* (organizations.md §3.2); the request uses unqualified scope=organization.",
+    "trap_6_both_insertion": "Ruled out by organizations.md §3.1 same reason as trap_5; insertion-order is also explicitly ruled out cross-fixturally by organizations.md §3.2 ('The two fixtures together rule out alphabetical, reverse-alphabetical, insertion-order, and reverse-insertion-order') even on the wildcard path.",
+    "trap_7_hedge_on_order": "Ruled out: the precondition for hedging on order is that BOTH aliases appear. Under the static unqualified path with multi-membership, the claim is absent — there is no array whose order to hedge on. The hedge applies on the wildcard path (organizations.md §3.2 + §5), not the static path.",
+    "trap_8_object_empty_bodies": "Ruled out by organizations.md §1: 'Under those defaults [mapper config matches realm-config.json], the claim is a flat JSON array of org alias strings.' Object shape would require addOrganizationId/addOrganizationAttributes non-default; realm-config.json shows both unset. (And in any case, multi-member static = absent.)",
+    "trap_9_object_full_orgrep": "Ruled out by organizations.md §1 same reason as trap_8; OOTB shape is array-of-strings, not object map. Plus multi-member static = absent.",
+    "trap_10_array_of_objects": "Ruled out by organizations.md §1: OOTB wire shape is flat JSON array of alias strings, not an array of org-representation objects. No fixture coverage for that shape exists in the skill. Plus multi-member static = absent.",
+    "trap_11_per_surface_divergence": "Ruled out by SKILL.md invariant 7: ID token base claims sourced from transformed access token. The OOTB oidc-organization-membership-mapper has identical access.token.claim and id.token.claim toggles (both true) and no per-surface differentiation; both surfaces resolve to the same N!=1 null-write branch → both absent.",
+    "trap_12_realm_wide_list": "Ruled out by realm-organizations.json: the realm contains exactly two organisations (acme, zeta) and adv5-multimember is a member of both. Even structurally, the static-default path doesn't enumerate the realm — it operates on the user's membership set. The trap is structurally indistinguishable from the correct shape here, but the prediction-target.md explicitly enumerates it for ruling-out. Plus multi-member static = absent.",
+    "trap_13_per_mint_volatility": "Not applicable for a single-mint prediction; the prediction-target.md says the predictor cannot pick this index. Two-mint determinism is the builder's concern, not the predictor's."
+  },
+  "skill_passages_invoked": [
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "invariant 13(a), lines 181-189",
+      "what_it_let_you_commit": "Pinned that unqualified scope=organization is the static path and that 'Multi-membership and zero-membership both produce a null write → NON_NULL drops the claim.' This is the key new invariant that lets me commit trap index 1 (absent) for the multi-member case."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "invariant 11, lines 156-163",
+      "what_it_let_you_commit": "Wire serialization drops null claims (JsonInclude.NON_NULL). This is the mechanism by which the null-write becomes absent-on-wire, not an empty-array placeholder. Lets me commit trap 1 (absent) rather than trap 2 (empty array)."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "invariant 7, lines 129-132",
+      "what_it_let_you_commit": "ID token base claims sourced from transformed access token, except sub/aud/iat. Plus the OIDCIDTokenMapper-side run with the same id.token.claim=true toggle hits the same N!=1 branch. Lets me commit the same shape (absent) on both surfaces — ruling out trap 11."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/SKILL.md",
+      "lines_or_section": "invariant 2, lines 92-98",
+      "what_it_let_you_commit": "scope claim = allowed client scopes whose isIncludeInTokenScope() is true, with openid re-attached for OIDC. Lets me commit the scope-claim multiset {openid, profile, organization, email}."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§3.1 (Unqualified scope=organization static path), lines 68-95",
+      "what_it_let_you_commit": "The static path with the dedup rule NOT firing (no colon), the mapper writing null on N!=1, AND the side-finding scoped explicitly to single-membership. The latter pins that the duplicate scope-claim 'organization organization' does NOT apply to multi-member case → organization_in_scope_count = 1."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§1 (Wire shape under default mapper config), lines 27-53",
+      "what_it_let_you_commit": "Pinned that the OOTB shape is a flat JSON array of org alias strings, not an object or array-of-objects. This rules out traps 8, 9, 10 even before applying the multi-member null-write rule."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§2 (NON_NULL on zero/empty membership), lines 56-64",
+      "what_it_let_you_commit": "Explicit empirical anchor: 'The wire shape is not [] or {} — it is the absence of the key.' Rules out trap 2 (empty array) for the null-write case."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§3.2 cross-fixture rule-out, lines 121-125",
+      "what_it_let_you_commit": "'The two fixtures together rule out alphabetical, reverse-alphabetical, insertion-order, and reverse-insertion-order' — applies on the wildcard path. For this fixture (static path) this is moot because the claim is absent, but it would rule out trap 5 and trap 6 even if the predictor mistakenly took the wildcard path."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/organizations.md",
+      "lines_or_section": "§6 cross-fixture summary table, lines 207-216",
+      "what_it_let_you_commit": "Explicit fixture-mapping: 'tests/token-construction/adversarial-5 → §3.1 (multi → claim absent).' Closes the loop on which §§ apply here."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/scope-resolution.md",
+      "lines_or_section": "L22-28 (dedup rule) and L104-126 (scope claim formation)",
+      "what_it_let_you_commit": "The dedup rule requires `name + ':'` substring; bare `organization` lacks the colon so the dedup does not fire. The static-default organization scope therefore survives candidate-set assembly. include.in.token.scope=true on organization in realm-config.json → it appears in scope claim. Other default scopes filtered out: basic, acr, web-origins, roles."
+    },
+    {
+      "file": ".claude/skills/keycloak-token-construction/references/scope-resolution.md",
+      "lines_or_section": "'fullScopeAllowed interaction (clarification)', lines 139-148",
+      "what_it_let_you_commit": "fullScopeAllowed=false on adv5-client does NOT change scope resolution or scope-claim composition — it only affects role-mapper allowlists. The scope claim composition is identical to a fullScopeAllowed=true client with the same scope param."
+    }
+  ],
+  "reasoning": "Step-by-step pipeline walk:\n\n1. Pre-flight isValidScope (scope-resolution.md L92-102): scope param is 'openid organization'. 'openid' is the OIDC marker and is stripped from validation. 'organization' is a registered client scope (it's in adv5-client.defaultClientScopes per realm-config.json), so isValidScope passes. No HTTP 400.\n\n2. Step 1 candidate-set (scope-resolution.md L10-46): seed from client.getClientScopes(default=true) ∪ {client} = {web-origins, acr, profile, organization, roles, basic, email, adv5-client}. Dedup rule at L22-28 checks: does scopeParam contain s.name + ':'? scopeParam='openid organization' — no colon present anywhere, so the dedup never fires. All seven default scopes plus the client survive. Optional-scope add loop: 'openid' is not in optional-scope names and tryResolveDynamicClientScope returns null for 'openid' (it's the protocol marker, not a dynamic scope). 'organization' is already in candidates, .distinct() dedups by ClientScopeModel instance. Candidates: {web-origins, acr, profile, organization, roles, basic, email, adv5-client}.\n\n3. Step 2 isAllowed (scope-resolution.md L49-66): no restrictedScopes here (this is a normal token request, not REQUESTED_AUDIENCE refresh). isClientScopePermittedForUser: the client itself always passes; for each scope, getScopeMappingsStream is checked — none of the built-in default scopes (organization, web-origins, acr, profile, roles, basic, email) have role mappings in the standard Keycloak install, so 'roles is empty → return true' (universal). All seven survive into allowedClientScopes.\n\n4. Base claims (initToken, SKILL.md macro flow step 3): sets iat, iss, azp, scope, exp, sid, etc. For password grant the session is persistent (not transient), so sub is NOT set by initToken — it is set by SubMapper later (invariant 1).\n\n5. Mapper-set assembly: union over allowed scopes of getProtocolMappersStream, filtered by protocol='openid-connect' and isEnabled. The 'organization' client scope contributes the oidc-organization-membership-mapper (claim.name=organization, multivalued=true, jsonType.label=String, access/id/introspection.token.claim=true).\n\n6. Per-mapper run on access surface (transformAccessToken): the organization mapper's access.token.claim=true, so the toggle gate passes. setClaim runs. Per organizations.md §3.1 + SKILL.md invariant 13(a): the user has TWO memberships (acme, zeta from realm-organizations.json), so the mapper's static-path logic writes null. SKILL.md invariant 11: JsonInclude.NON_NULL drops null claims from the wire. → organization claim ABSENT on access token. Trap index 1.\n\n7. Per-mapper run on ID surface (transformIDToken, then generateIDToken seeds IDToken from already-transformed access token per invariant 7): the OIDCIDTokenMapper-side branch of oidc-organization-membership-mapper hits the same N!=1 null-write branch. NON_NULL drops it. → organization claim ABSENT on ID token. Trap index 1.\n\n8. scope claim composition (SKILL.md invariant 2 + scope-resolution.md L104-126): allowedClientScopes minus the client (DCSC.L200) → {web-origins, acr, profile, organization, roles, basic, email}. Filter by isIncludeInTokenScope: profile (true), email (true), organization (true); web-origins/acr/basic/roles (false) drop out. → {profile, organization, email}. attachOIDCScope prepends 'openid' (the original param was OIDC). The order in DCSC.getScopeString is determined by the order of the underlying allowedClientScopes stream — the skill text does NOT pin this order with a hard rule. Best-guess literal string: 'openid profile organization email'.\n\n9. Duplicate-organization question: organizations.md §3.1 side-finding documents 'organization organization' appearing twice in the scope claim string, BUT only for users with exactly ONE organisation membership. adv5-multimember has two memberships, so the side-finding does NOT apply. organization_in_scope_count = 1. Multiset: openid=1, profile=1, organization=1, email=1.\n\n10. Post-mapper restrictRequestedAudience (invariant 8): not applicable here — no REQUESTED_AUDIENCE_CLIENTS attribute on the session ctx (this is a normal password grant, not a token-exchange refresh).\n\n11. Sanity: this fixture is the canonical anchor for organizations.md §3.1 multi-member static-path absent case, and §6 explicitly maps adv-5 to this section. The prior wrong prediction (predicted-claim-present with both aliases) was the 'reader who didn't know about the static-path null-write trap' shape; the new organizations.md §3.1 is precisely the passage that closes that hole.\n\nHighlighted ambiguities remaining:\n- The literal whitespace order of names in the scope claim string is not pinned by skill text. DCSC.getScopeString does a .map(name).join(' ') over a stream whose ordering is not documented in the skill. The multiset is contract-derivable; the literal-string order is best-guess based on default-scopes list iteration order (insertion order from realm export). If the actual is permuted (e.g. 'openid email profile organization'), the multiset still matches; only the literal-string field would diverge. This is the only soft commitment in this prediction.",
+  "fixture_target_compliance_note": "All five required JSON keys (committed_value with access_token + id_token subfields, shapes_ruled_out_by_skill, skill_passages_invoked, reasoning, fixture_target_compliance_note) are populated. Trap indices are integers in 1..12 (chose 1 for both surfaces; did not choose off-menu 13). organization_claim_value is null for trap-1-absent on both surfaces, per prediction-target.md L49 ('the exact JSON value, or null if shape #1 (absent)'). scope_claim_literal_string is a single whitespace-separated string. scope_claim_multiset has integer counts for every scope name expected. organization_in_scope_count is an integer (1). reasoning cites the specific SKILL.md invariants and references/organizations.md sections that pin each dimension. Did NOT read setup.md, surprises.md, actual-token.json, actual-id-token.json, actual-token-mint2.json, actual-id-token-mint2.json, log.txt, log-mint2.txt, prediction.before-org-docs.json, diff.before-org-docs.md, or any sibling adversarial-{1,2,3,4,6} fixture content. Only consulted the four whitelisted inputs (SKILL.md + references/, realm-config.json, realm-organizations.json, request.json, prediction-target.md)."
+}

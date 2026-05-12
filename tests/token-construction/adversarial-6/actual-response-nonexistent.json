@@ -1,0 +1,7 @@
+{
+  "status": 400,
+  "body": {
+    "error": "invalid_scope",
+    "error_description": "Invalid scopes: openid organization:nonexistent"
+  }
+}

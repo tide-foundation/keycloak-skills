@@ -1,0 +1,21 @@
+{
+  "acr": "1",
+  "azp": "adv6-client",
+  "email": "adv6-multimember@example.invalid",
+  "email_verified": true,
+  "exp": 1778555926,
+  "family_name": "Multimember",
+  "given_name": "Adv6",
+  "iat": 1778555626,
+  "iss": "http://localhost:8080/realms/adv-6",
+  "jti": "onrtro:a461d2c7-40f5-6623-4c48-8265293e2264",
+  "name": "Adv6 Multimember",
+  "organization": [
+    "acme"
+  ],
+  "preferred_username": "adv6-multimember",
+  "scope": "openid email organization:acme profile",
+  "sid": "UdTznJmsstyLhA4CwjHxbr6r",
+  "sub": "44e39190-f5ca-4ae8-ae57-e16a4f7f7ebf",
+  "typ": "Bearer"
+}

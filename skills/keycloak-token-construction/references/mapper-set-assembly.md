@@ -1,5 +1,7 @@
 # Mapper-set assembly
 
+> **All source paths in this document are remote URLs at [github.com/keycloak/keycloak](https://github.com/keycloak/keycloak) tag `26.5.5` — they are NOT files in this working directory.** Shorthand like `PMU.L150-175` or `DCSC.L310-326` refers to the same upstream sources. Use `WebFetch`; do not look for them on the local filesystem. Full path → URL mapping is in [source-pointers.md](source-pointers.md).
+
 Defines how the mapper set is gathered from the client + allowed scopes,
 deduplicated, and ordered for execution. The set is identical across all five
 surfaces; the *surface* filter is applied later by `transform<Surface>` (see
@@ -47,7 +49,7 @@ Trust the source's identity-based dedup; check by mapper id, not name.
 ## Sort order
 
 Done at use time, by `ProtocolMapperUtils.getSortedProtocolMappers`
-(`services/.../protocol/ProtocolMapperUtils.java:150-175`):
+([`services/.../protocol/ProtocolMapperUtils.java:150-175`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/ProtocolMapperUtils.java#L150-L175)):
 
 ```
 getSortedProtocolMappers(session, ctx, predicate):           # PMU.L150
@@ -126,7 +128,7 @@ mapperSet(client, allowedScopes, session, surface):
 
 ## See also
 
-- `services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java:161-167` — `getProtocolMappersStream`.
-- `services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java:310-326` — `loadProtocolMappers`.
-- `services/src/main/java/org/keycloak/protocol/ProtocolMapperUtils.java:150-175` — sort + surface filter.
-- `services/src/main/java/org/keycloak/protocol/oidc/utils/DPoPUtil.java` — transient DPoP mapper.
+- [`DefaultClientSessionContext.java:161-167`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java#L161-L167) — `getProtocolMappersStream`.
+- [`DefaultClientSessionContext.java:310-326`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java#L310-L326) — `loadProtocolMappers`.
+- [`ProtocolMapperUtils.java:150-175`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/ProtocolMapperUtils.java#L150-L175) — sort + surface filter.
+- [`DPoPUtil.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/utils/DPoPUtil.java) — transient DPoP mapper.

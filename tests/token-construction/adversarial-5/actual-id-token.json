@@ -1,0 +1,19 @@
+{
+  "acr": "1",
+  "at_hash": "VOPuywsg9A4dYzloOUk6tg",
+  "aud": "adv5-client",
+  "azp": "adv5-client",
+  "email": "adv5-multimember@example.invalid",
+  "email_verified": true,
+  "exp": 1778554240,
+  "family_name": "Multimember",
+  "given_name": "Adv5",
+  "iat": 1778553940,
+  "iss": "http://localhost:8080/realms/adv-5",
+  "jti": "3debdd7f-90ca-0a23-f682-d1ede174ce9a",
+  "name": "Adv5 Multimember",
+  "preferred_username": "adv5-multimember",
+  "sid": "LfWQIIXU3bSuL19BEKQhjODW",
+  "sub": "2ad079d8-9104-487e-a2a0-68dae4347767",
+  "typ": "ID"
+}

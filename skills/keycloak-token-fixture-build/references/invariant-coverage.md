@@ -14,12 +14,13 @@ or retiring an old one.
 | 4 | Introspection fallback ignores lightweight | — | gap |
 | 5 | Userinfo fallback uses `id.token.claim`, not `access.token.claim` | — | gap |
 | 6 | `fullScopeAllowed` short-circuits role intersection, not mapper dispatch | adversarial-2 (collateral) | partial — explicitly invoked by predictor; no dedicated fixture |
-| 7 | ID-token base claims sourced from transformed access token | — | gap |
+| 7 | ID-token base claims sourced from transformed access token | adversarial-4 (collateral) | partial — adv-4 confirmed shape parity across access+ID for the organisation-membership mapper |
 | 8 | `restrictRequestedAudience` runs after access-token mappers | — | gap |
 | 9 | `at_hash`/`c_hash`/`s_hash` out of model | — | not worth a fixture (out of skill scope) |
-| 10 | Mapper sort ties are not deterministic | adversarial-1 | covered (FAIL-BY-DESIGN, by design) |
-| 11 | NON_NULL drops null claims | adversarial-1 (collateral), adversarial-2 (collateral) | partial — invoked by predictor on every fixture; no dedicated probe |
+| 10 | Mapper sort ties are not deterministic | adversarial-1, adversarial-6 (extension) | covered (FAIL-BY-DESIGN, by design). Adv-6's wildcard order finding extended invariant 10's wording in SKILL.md to cover intra-mapper Set iteration over user-state collections. |
+| 11 | NON_NULL drops null claims | adversarial-1 (collateral), adversarial-2 (collateral), adversarial-4 (nonmember case, dedicated), adversarial-5 (multi-member static case, dedicated) | covered — adv-4 + adv-5 both produce intentional NON_NULL drops on the `organization` claim |
 | 12 | Transient `sid` nulling on `useRefreshToken=false` + TRANSIENT | adversarial-3 | covered (PASS) |
+| 13 | `organization` claim — three scope-param entry paths with materially different behaviour | adversarial-4 (single-member + nonmember, wire shape), adversarial-5 (multi-member unqualified → claim absent), adversarial-6 (specific / wildcard / nonexistent dynamic forms) | covered — three dedicated fixtures, motivated the new `references/organizations.md` |
 
 ## What "covered" means
 

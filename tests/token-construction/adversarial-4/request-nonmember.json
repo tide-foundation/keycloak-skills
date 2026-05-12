@@ -1,0 +1,15 @@
+{
+  "method": "POST",
+  "url": "http://localhost:8080/realms/adv-4/protocol/openid-connect/token",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "form_params": {
+    "grant_type": "password",
+    "client_id": "adv4-client",
+    "client_secret": "adv4-secret-feedface",
+    "username": "adv4-nonmember",
+    "password": "password",
+    "scope": "openid organization"
+  }
+}

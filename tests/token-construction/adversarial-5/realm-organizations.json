@@ -1,0 +1,67 @@
+{
+  "_note": "This file is required because partial-export omits organizations and their members. Captured via GET /admin/realms/adv-5/organizations and GET /admin/realms/adv-5/organizations/{id}/members. The order of the top-level list mirrors what the admin API returns; see surprises.md if it appears alphabetised vs creation order.",
+  "organizations": [
+    {
+      "members": [
+        {
+          "createdTimestamp": 1778553709008,
+          "disableableCredentialTypes": [],
+          "email": "adv5-multimember@example.invalid",
+          "emailVerified": true,
+          "enabled": true,
+          "firstName": "Adv5",
+          "id": "2ad079d8-9104-487e-a2a0-68dae4347767",
+          "lastName": "Multimember",
+          "membershipType": "UNMANAGED",
+          "notBefore": 0,
+          "requiredActions": [],
+          "totp": false,
+          "username": "adv5-multimember"
+        }
+      ],
+      "organization": {
+        "alias": "acme",
+        "domains": [
+          {
+            "name": "acme.test",
+            "verified": true
+          }
+        ],
+        "enabled": true,
+        "id": "cac4b26e-c119-41d7-b7eb-d22bc2a6b242",
+        "name": "Acme Corp"
+      }
+    },
+    {
+      "members": [
+        {
+          "createdTimestamp": 1778553709008,
+          "disableableCredentialTypes": [],
+          "email": "adv5-multimember@example.invalid",
+          "emailVerified": true,
+          "enabled": true,
+          "firstName": "Adv5",
+          "id": "2ad079d8-9104-487e-a2a0-68dae4347767",
+          "lastName": "Multimember",
+          "membershipType": "UNMANAGED",
+          "notBefore": 0,
+          "requiredActions": [],
+          "totp": false,
+          "username": "adv5-multimember"
+        }
+      ],
+      "organization": {
+        "alias": "zeta",
+        "domains": [
+          {
+            "name": "zeta.test",
+            "verified": true
+          }
+        ],
+        "enabled": true,
+        "id": "c4d9761a-c8ae-47af-b83a-2b5deaa931e4",
+        "name": "Zeta Industries"
+      }
+    }
+  ]
+}

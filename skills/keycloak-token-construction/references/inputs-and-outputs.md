@@ -1,5 +1,7 @@
 # Inputs and outputs
 
+> **All source paths in this document are remote URLs at [github.com/keycloak/keycloak](https://github.com/keycloak/keycloak) tag `26.5.5` — they are NOT files in this working directory.** Shorthand like `TokenManager.L992-994` or `OAuth2GrantTypeBase.java:132` refers to the same upstream sources. Use `WebFetch`; do not look for them on the local filesystem. Full path → URL mapping is in [source-pointers.md](source-pointers.md).
+
 Defines the contract of the pure function this skill models: what state must be
 known to predict a token's claims, and what shape the output takes per surface.
 
@@ -116,7 +118,7 @@ in `build()` at L1372 — *after* the access/id/refresh tokens are encoded.
 ## Wire serialization — `JsonInclude.NON_NULL`
 
 The output of token construction is an **in-memory** claims map. The wire JSON
-is produced by `core/src/main/java/org/keycloak/util/JsonSerialization.java:48`,
+is produced by [`core/src/main/java/org/keycloak/util/JsonSerialization.java:48`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/util/JsonSerialization.java#L48),
 which configures the Jackson `ObjectMapper` with
 `@JsonInclude(JsonInclude.Include.NON_NULL)`. **Any claim with a `null` value
 is dropped from the wire JSON.** This rule applies to every surface (access
@@ -159,8 +161,8 @@ mapper. There is no "include null" override on the OIDC path.
 
 ## See also
 
-- `services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java:525-535` — `createClientAccessToken` entry point.
-- `services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java:60-145` — fields and constructor.
-- `core/src/main/java/org/keycloak/representations/AccessToken.java` — claim field declarations.
-- `core/src/main/java/org/keycloak/representations/IDToken.java` — claim field declarations (superclass).
-- `core/src/main/java/org/keycloak/util/JsonSerialization.java:48` — `JsonInclude.NON_NULL` (wire serialization rule).
+- [`TokenManager.java:525-535`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L525-L535) — `createClientAccessToken` entry point.
+- [`DefaultClientSessionContext.java:60-145`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/services/util/DefaultClientSessionContext.java#L60-L145) — fields and constructor.
+- [`AccessToken.java`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/representations/AccessToken.java) — claim field declarations.
+- [`IDToken.java`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/representations/IDToken.java) — claim field declarations (superclass).
+- [`JsonSerialization.java:48`](https://github.com/keycloak/keycloak/blob/26.5.5/core/src/main/java/org/keycloak/util/JsonSerialization.java#L48) — `JsonInclude.NON_NULL` (wire serialization rule).

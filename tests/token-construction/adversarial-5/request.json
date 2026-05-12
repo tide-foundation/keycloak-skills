@@ -1,0 +1,15 @@
+{
+  "method": "POST",
+  "url": "http://localhost:8080/realms/adv-5/protocol/openid-connect/token",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "form_params": {
+    "grant_type": "password",
+    "client_id": "adv5-client",
+    "client_secret": "adv5-secret-cafebabe",
+    "username": "adv5-multimember",
+    "password": "password",
+    "scope": "openid organization"
+  }
+}

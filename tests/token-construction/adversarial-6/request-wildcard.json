@@ -1,0 +1,16 @@
+{
+  "_note": "Form-encoded request body captured as JSON. Sent to POST /realms/adv-6/protocol/openid-connect/token with Content-Type: application/x-www-form-urlencoded.",
+  "method": "POST",
+  "url": "http://localhost:8080/realms/adv-6/protocol/openid-connect/token",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "form": {
+    "grant_type": "password",
+    "client_id": "adv6-client",
+    "client_secret": "adv6-secret-deadbeef",
+    "username": "adv6-multimember",
+    "password": "password",
+    "scope": "openid organization:*"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "fixture": "adversarial-6",
+  "request_specific": {
+    "outcome": "success",
+    "if_http_4xx_status_code": null,
+    "if_http_4xx_error_code": null,
+    "access_token_organization_claim": ["acme"],
+    "id_token_organization_claim": ["acme"],
+    "access_token_scope_claim_string": "openid profile email organization:acme",
+    "trap_index_organization": "1a",
+    "trap_index_scope": "1-scope-A",
+    "reasoning": "Step 1 candidate set (scope-resolution.md L11-41): defaults for adv6-client = {web-origins, acr, profile, roles, organization, basic, email} ∪ {client}. Scope param contains 'organization:acme'. L22-28 drops the default 'organization' scope because (a) 'organization:' prefix appears in scopeParam and (b) it carries an OrganizationMembershipMapper — the dedup rule. Then 'organization:acme' is not in optional scopes (address/phone/offline_access/microprofile-jwt), so falls to tryResolveDynamicClientScope (L36, L679-695). Feature.ORGANIZATION is enabled (realm-config.json L2002 organizationsEnabled=true), the alias 'acme' exists, so the dynamic scope is added. Pre-flight isValidScope (L86-97) accepts because the dynamic-scope prefix 'organization' is registered. Mapper-set assembly (mapper-set-assembly.md L17-27) unions the dynamic scope's oidc-organization-membership-mapper into the set. Toggle gate (mapper-execution.md L98-100): the mapper config has access.token.claim=true and id.token.claim=true (realm-config.json L1404, L1406), so it fires on both surfaces. The dedup at L22-28 exists precisely so the alias-qualified variant replaces the wildcard-default variant — the natural contract is that the alias narrows the claim to the requested alias. organization claim = ['acme']. scope claim (DCSC.L188-212, scope-resolution.md L99-121): allowed = {client (filtered out), profile, email, dynamic-organization:acme} (web-origins/acr/roles/basic have include.in.token.scope=false per realm-config L1099 etc.; profile/email default to true per ClientScopeModel.L109-112). 'openid' is reattached. Result: 'openid profile email organization:acme'. Static 'organization' is dedup'd out per L22-28, so 1-scope-A (not 1-scope-B).",
+    "skill_passages_invoked": [
+      "scope-resolution.md L22-28 (default-scope dedup for OrganizationMembershipMapper-bearing default scopes when scopeParam contains name+':' prefix)",
+      "scope-resolution.md L36, L679-695 (tryResolveDynamicClientScope when Feature.ORGANIZATION enabled)",
+      "scope-resolution.md L86-97 (pre-flight isValidScope accepts registered dynamic-scope prefixes)",
+      "scope-resolution.md L99-121 (getScopeString algorithm — filter by isIncludeInTokenScope, attach openid)",
+      "scope-resolution.md L114-121 (default include.in.token.scope is true; profile/email pass)",
+      "mapper-set-assembly.md L17-27 (union over allowedClientScopes drives mapper set)",
+      "mapper-execution.md L98-100 (access/id-token gates: access.token.claim==true, id.token.claim==true)",
+      "SKILL.md Invariant 2 (scope claim = allowed-scope names with include.in.token.scope=true, openid reattached)"
+    ]
+  },
+  "request_wildcard": {
+    "outcome": "success",
+    "if_http_4xx_status_code": null,
+    "if_http_4xx_error_code": null,
+    "access_token_organization_claim": ["acme", "globex"],
+    "id_token_organization_claim": ["acme", "globex"],
+    "access_token_scope_claim_string": "openid profile email organization:*",
+    "trap_index_organization": "2a",
+    "trap_index_scope": "2-scope-A",
+    "wildcard_order_commitment": "[\"acme\", \"globex\"] — insertion order which also happens to be alphabetical for this fixture (realm-organizations.json _note). The target skill does not specify membership-ordering semantics for the oidc-organization-membership-mapper. The skill's only ordering invariant is Invariant 10 (mapper-sort ties), which is about ProtocolMapperUtils.compare and HashSet<ProtocolMapperModel> iteration order — that governs which mappers run in what order, NOT the internal ordering of values produced by a single multi-valued mapper. The fixture's realm-organizations.json note (lines 2-3) explicitly tells me insertion order = alphabetical here, so picking ['acme', 'globex'] is the lower-entropy guess; the skill text does not let me commit beyond that. Hedge: if the actual capture differs (e.g., ['globex', 'acme']), the skill gap is that it does not document the membership-collection traversal order used by oidc-organization-membership-mapper.",
+    "reasoning": "Same scope-resolution path as request 1 except the qualifier is '*'. Step 1 (scope-resolution.md L22-28) drops default 'organization' because 'organization:' prefix appears in scopeParam. 'organization:*' is not in optional scopes, so tryResolveDynamicClientScope is called (L36, L679-695); '*' is the wildcard alias form. The skill does not internally describe wildcard resolution but the result is a dynamic scope that drives the OrganizationMembershipMapper to emit all of the user's memberships. The user is in BOTH acme and globex per realm-organizations.json memberships, so organization = ['acme', 'globex'] (or '[globex, acme]'). I commit to alphabetical/insertion-order ['acme', 'globex'] — skill text does not pin internal mapper ordering. scope claim = 'openid profile email organization:*' assuming the dynamic scope's name carries the wildcard literally. Static 'organization' is dedup'd out per L22-28 → 2-scope-A.",
+    "skill_passages_invoked": [
+      "scope-resolution.md L22-28 (dedup applies for any 'organization:' prefix including ':*')",
+      "scope-resolution.md L36, L679-695 (tryResolveDynamicClientScope handles the wildcard alias)",
+      "scope-resolution.md L99-121 (getScopeString uses scope.name; dynamic scope's name carries the qualifier)",
+      "mapper-execution.md L132-141 (UserAttributeMapper-style mappers no-op on null source; multi-valued multivalued=true emission produces JSON array)",
+      "SKILL.md Invariant 10 cited explicitly to NOTE it does NOT cover this case — it governs mapper-sort ties, not intra-mapper value-list ordering",
+      "inputs-and-outputs.md L78-86 (claim values that mappers write — but skill silent on org-membership internal order)"
+    ]
+  },
+  "request_nonexistent": {
+    "outcome": "success",
+    "if_http_4xx_status_code": null,
+    "if_http_4xx_error_code": null,
+    "access_token_organization_claim": "absent",
+    "id_token_organization_claim": "absent",
+    "access_token_scope_claim_string": "openid profile email",
+    "trap_index_outcome": "3b",
+    "trap_index_scope": "3-scope-C",
+    "reasoning": "Step 1 (scope-resolution.md L22-28) still applies: default 'organization' is dropped from candidates because the scopeParam contains 'organization:' as a dynamic-scope prefix and the default scope carries an OrganizationMembershipMapper. That dedup runs unconditionally on the substring match — it does NOT depend on the alias actually existing. Then tryResolveDynamicClientScope is invoked for 'organization:nonexistent' (L36, L679-695). The alias is not a real organisation, so the resolver returns null. scope-resolution.md L156-159 is decisive here: 'Dynamic scope rejected by tryResolveDynamicClientScope: silently skipped by Step 1. If the name is otherwise unknown, pre-flight isValidScope still rejects.' The 'organization:nonexistent' token DOES match a registered dynamic-scope prefix ('organization'), so it is not 'otherwise unknown' — pre-flight does not reject. So the request succeeds (HTTP 200), no dynamic scope is added, the default 'organization' was already dedup'd out, and no OrganizationMembershipMapper ends up in the mapper set at all. The 'organization' claim is therefore absent from both access and ID tokens (mapper-execution.md L122-130: 'fires is not writes' — but here the mapper doesn't even fire because it's not in the set). scope claim has neither bare 'organization' nor a qualified form → 3-scope-C (bogus qualifier silently dropped). Remaining allowed scopes with include.in.token.scope=true: profile and email; openid reattached. Result: 'openid profile email'.",
+    "skill_passages_invoked": [
+      "scope-resolution.md L22-28 (dedup is substring-prefix based; runs even when the alias is invalid)",
+      "scope-resolution.md L86-97 (pre-flight INVALID_SCOPE — applies only if the name is not in default+optional+dynamic patterns; 'organization:' prefix IS registered)",
+      "scope-resolution.md L156-159 ('Dynamic scope rejected by tryResolveDynamicClientScope: silently skipped by Step 1' — decisive on success-vs-4xx)",
+      "scope-resolution.md L99-121 (getScopeString filters to allowed scopes with include.in.token.scope=true; 'organization' not in allowed any longer)",
+      "mapper-execution.md L122-130 ('fires is not writes' — here the mapper isn't even in the set, so claim absent for reason (a) not (b)/(c))"
+    ]
+  },
+  "fixture_target_compliance_note": "Met minimum-specificity bar per request: committed organization-claim shape, scope-claim string, trap indices, and outcomes for all three requests. For request 2 (wildcard), I committed to ['acme', 'globex'] order rather than hedging — the prediction-target.md explicitly rejects 'invariant-10 hedge' here because Invariant 10 governs mapper-sort ties, not intra-mapper value-list ordering. I noted explicitly that the skill is silent on org-membership traversal order; my commitment is the lower-entropy guess (alphabetical / insertion-order alignment per realm-organizations.json _note). Forbidden files NOT read: setup.md, surprises.md, any actual-token*.json, any actual-id-token*.json, actual-response-nonexistent.json, all log*.txt, all of adversarial-2..5, fixtures/token-*.json, fixtures/logs-*.log, fixtures/realm-export.json. Inputs consulted: SKILL.md, all 7 references/*.md, adversarial-6/realm-config.json, adversarial-6/realm-organizations.json, all three request-*.json files, adversarial-6/prediction-target.md, and adversarial-1/prediction.json (shape reference only).",
+  "shapes_ruled_out_by_skill": [
+    "1b ['acme', 'globex'] — ruled out: scope-resolution.md L22-28 explicitly dedup's the static default 'organization' OUT when an alias-qualified prefix is in scopeParam. The mapper set for request 1 contains ONLY the dynamic-scope-attached mapper (qualified to acme), not the wildcard-default-attached one. The contract of the dedup is that the qualified variant replaces the universal variant.",
+    "1d HTTP 4xx — ruled out: scope-resolution.md L86-97 says pre-flight rejects only names not in the default+optional+dynamic union. 'organization:acme' matches the registered dynamic-scope prefix and the alias resolves successfully via tryResolveDynamicClientScope (L36).",
+    "1-scope-B 'organization' AND 'organization:acme' — ruled out: scope-resolution.md L22-28 dedup drops the static 'organization' from candidates. getScopeString (L99-121) only emits names of allowed scopes; static 'organization' is not in allowedClientScopes for this request.",
+    "1-scope-C bare 'organization' only — ruled out: same dedup logic; static 'organization' is dropped. The dynamic scope's name carries the alias qualifier (it is what was passed and what tryResolveDynamicClientScope built).",
+    "1-scope-D 'organization:acme' twice — ruled out: mapper-set-assembly.md L34-46 dedup is by ProtocolMapperModel id; there is only one OrganizationMembershipMapper-bearing scope after dedup (the dynamic one). Set semantics prevent duplicate emission from getScopeString.",
+    "2d organization absent — ruled out: user is a member of acme AND globex (realm-organizations.json memberships), oidc-organization-membership-mapper fires (access.token.claim=true, id.token.claim=true), and multivalued=true emits a non-null JSON array. NON_NULL serializer (Invariant 11) does not drop non-empty arrays.",
+    "2e HTTP 4xx — ruled out: 'organization:*' matches the registered dynamic-scope prefix; pre-flight isValidScope (L86-97) does not reject; tryResolveDynamicClientScope (L679-695) accepts the wildcard alias.",
+    "2-scope-B 'organization' AND 'organization:*' — ruled out: scope-resolution.md L22-28 dedup drops the static 'organization' (the prefix 'organization:' is in scopeParam, including the wildcard form).",
+    "2-scope-C bare 'organization' only — ruled out: same dedup.",
+    "3a HTTP 400 invalid_scope — ruled out by scope-resolution.md L156-159 which explicitly states dynamic-scope resolution failure is SILENTLY SKIPPED. Pre-flight only rejects names entirely unknown (not matching any registered dynamic-scope prefix). 'organization:nonexistent' has the registered 'organization:' prefix → pre-flight passes.",
+    "3c organization=['nonexistent'] — ruled out: tryResolveDynamicClientScope returns null when the alias doesn't exist (scope-resolution.md L156-157); no dynamic scope is added to candidates, so the OrganizationMembershipMapper is not in the mapper set. The claim cannot be written; mapper-execution.md L122-130 ('fires is not writes') applies a fortiori — the mapper doesn't even fire here.",
+    "3d organization=all memberships — ruled out: same reasoning. No mapper in the set → no claim. There is no fallback-to-wildcard documented anywhere in scope-resolution.md.",
+    "3e HTTP 4xx other error — ruled out: scope-resolution.md L86-97 specifies INVALID_SCOPE as the rejection code; no other 4xx pathway is documented for unknown scope names.",
+    "3-scope-A scope absent — ruled out: the request succeeds (per 3b commitment), so an access token exists and base claims (base-claims.md L27-35) always include 'scope' via clientSessionCtx.getScopeString() (TokenManager.L1000). The string may be near-empty but not absent.",
+    "3-scope-B contains organization:nonexistent — ruled out: the dynamic scope wasn't added to allowedClientScopes (silently skipped per L156-159), so getScopeString doesn't see it. The static 'organization' was already dedup'd out per L22-28. Neither form appears.",
+    "3-scope-D bare organization only — ruled out: static 'organization' was dedup'd out per L22-28 (the dedup is substring-based on 'organization:' and runs even when the alias is invalid)."
+  ],
+  "open_skill_gaps_flagged_for_maintainer": [
+    "The skill does NOT specify what tryResolveDynamicClientScope returns as the .name of the resolved scope object. I assumed scope.name = the literal alias-qualified string the caller passed (e.g., 'organization:acme' / 'organization:*'). If the implementation instead uses the unqualified template name 'organization', the scope claim predictions for requests 1 and 2 would be wrong. A line in scope-resolution.md describing the dynamic-scope's name attribute would close this gap.",
+    "The skill does NOT specify the value-emission semantics of OrganizationMembershipMapper as a function of the dynamic-scope qualifier. The dedup at L22-28 implies a 'qualified replaces universal' contract, but the mapper's setClaim behavior in each case is not stated. A short paragraph on what oidc-organization-membership-mapper writes for (a) static default 'organization' scope, (b) dynamic 'organization:<alias>', (c) dynamic 'organization:*' would close requests 1 and 2.",
+    "The skill does NOT specify membership iteration order for the multi-valued organization claim. Invariant 10 governs mapper-sort ties, not intra-mapper value-list ordering. Request 2 requires picking an order; the skill text does not anchor the choice. A note on the membership-collection traversal (alphabetical alias, insertion order, or HashSet-like) would resolve this.",
+    "The relationship between scope-resolution.md L86-97 (pre-flight INVALID_SCOPE) and L156-159 (dynamic-scope resolution silently skipped) is the load-bearing passage for request 3. The 'otherwise unknown' phrasing at L158-159 is the only thing distinguishing 3a from 3b. A worked example showing exactly which inputs route to which outcome (e.g., 'org:nonexistent → silently skipped because the prefix is registered; bogus-scope-without-prefix → pre-flight reject') would be more defensible."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "acr": "1",
+  "azp": "adv5-client",
+  "email": "adv5-multimember@example.invalid",
+  "email_verified": true,
+  "exp": 1778554242,
+  "family_name": "Multimember",
+  "given_name": "Adv5",
+  "iat": 1778553942,
+  "iss": "http://localhost:8080/realms/adv-5",
+  "jti": "onrtro:909d268f-96d3-2707-a9c9-df7fddb9d70f",
+  "name": "Adv5 Multimember",
+  "preferred_username": "adv5-multimember",
+  "scope": "openid profile email organization",
+  "sid": "5YUn_T6dp7eYcmbmVg7otuqX",
+  "sub": "2ad079d8-9104-487e-a2a0-68dae4347767",
+  "typ": "Bearer"
+}

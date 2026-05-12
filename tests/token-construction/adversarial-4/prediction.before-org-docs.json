@@ -1,0 +1,87 @@
+{
+  "committed_value": {
+    "member": {
+      "access_token_organization_claim_trap_index": 5,
+      "access_token_organization_claim_value": {"acme": {}},
+      "id_token_organization_claim_trap_index": 5,
+      "id_token_organization_claim_value": {"acme": {}},
+      "access_token_scope_claim_set": ["openid", "profile", "organization", "email"],
+      "id_token_scope_claim_set_or_absent": null
+    },
+    "nonmember": {
+      "access_token_organization_claim_trap_index": 1,
+      "access_token_organization_claim_value": null,
+      "id_token_organization_claim_trap_index": 1,
+      "id_token_organization_claim_value": null,
+      "access_token_scope_claim_set": ["openid", "profile", "organization", "email"],
+      "id_token_scope_claim_set_or_absent": null
+    }
+  },
+  "confidence": {
+    "member.access_token_organization_claim": "LOW — skill does not document the wire shape of oidc-organization-membership-mapper; commitment to shape 5 is a best-effort inference from `multivalued=true`+`jsonType.label=String` config plus general Keycloak conventions, NOT from a skill passage. See `fixture_target_compliance_note`.",
+    "member.id_token_organization_claim": "LOW — same gap; furthermore invariant 7 says ID-token base is sourced from the *transformed access token*, but the org mapper also has `id.token.claim=true` so it fires fresh on the ID-token surface and would emit the same shape per invariant 9 (no per-surface toggle).",
+    "nonmember.access_token_organization_claim": "MEDIUM — invariant 11 (NON_NULL drop) combined with the user holding zero memberships strongly suggests shape 1 (absent), but mapper-execution.md L132-141's list of known null-no-op mappers does NOT include OrganizationMembershipMapper, so the empty-container path (shape 2 or 3) is not ruled out by skill text.",
+    "nonmember.id_token_organization_claim": "MEDIUM — same logic as nonmember access token; invariant 9 says shape parity per surface.",
+    "scope_claim_sets": "HIGH — scope-resolution.md L99-121 + invariant 2 fully determine this from realm-config.json include.in.token.scope values."
+  },
+  "shapes_ruled_out_by_skill": {
+    "member shape 1 (absent)": "Invariant 11 (SKILL.md L151-158, NON_NULL drops null claims) would only apply if the mapper emits null. The user holds a non-empty membership (`acme` per realm-organizations.json L1-34). The mapper config has `access.token.claim=true` and `id.token.claim=true` (realm-config.json L1169-1171), so mapper-execution.md decision matrix says it fires on both surfaces. While the skill doesn't enumerate the exact emission shape, the skill's only explicit mention of organization-membership in scope-resolution.md is in dedup logic (L22-28), which assumes the mapper is the source of the organization claim — implying a non-null write on members. Predicting absent for a member contradicts the only positive signal the skill gives about this mapper.",
+    "member/nonmember shape 8 (realm-wide list ignoring membership)": "Nothing in the skill suggests scope-resolution or mappers read realm-wide organization listings independent of user membership. The scope-resolution.md OrganizationMembershipMapper reference (L22-28) names *membership* explicitly. mapper-execution.md frames mappers as deriving from `user` / `userSession` / `clientSessionCtx` inputs (inputs-and-outputs.md L7-72). A `globex` membership for adv4-member is absent from realm-organizations.json (L36 shows globex has zero members), so any shape that contains globex for either user contradicts the user-driven mapper input model.",
+    "member/nonmember shape 9 (different shape per surface)": "Invariant 7 (SKILL.md L128-132): ID-token base claims sourced from already-transformed access token. The OOTB oidc-organization-membership-mapper exposes the standard toggle set (access.token.claim, id.token.claim, etc.) but no per-surface shape selector — same mapper, same setClaim, same write. Plus the prediction-target.md itself notes (line 140-145) that 'different shapes per surface would require a per-surface mapper toggle that the OOTB mapper does not expose. Commit to same shape per surface unless one of the surfaces drops the claim entirely.'",
+    "member/nonmember shape 10 (non-deterministic)": "Only one organization-emitting mapper is configured (realm-config.json L1166-1182), so invariant 10 (mapper-set-assembly.md 'Tie-breaking is non-deterministic') does not apply — no equal-priority same-path collision. The prediction-target.md also says (L147-149) the predictor cannot observe determinism failures pre-mint."
+  },
+  "skill_passages_invoked": [
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 2 (L95-98)",
+      "what_it_let_you_commit": "The `scope` claim is the names of allowed client scopes whose isIncludeInTokenScope=true, plus `openid` re-attached for OIDC requests, with the client itself filtered out. Default for missing include.in.token.scope is true."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "Step 1 candidate set (L12-41) + Step 2 isAllowed (L44-62)",
+      "what_it_let_you_commit": "Allowed scopes = adv4-client default scopes (web-origins, acr, profile, roles, organization, basic, email) minus any failing isAllowed. None have scopeMappings (realm-config.json L2517-2524 shows only offline_access has role mappings, and offline_access is optional and not requested), so all default scopes are universally permitted. scopeParam=`openid organization` adds no optional scopes (organization is already default; openid is a protocol marker)."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "`getScopeString` algorithm (L99-121)",
+      "what_it_let_you_commit": "Filter allowed scopes by isIncludeInTokenScope, drop the client itself, re-attach `openid` because clientSession SCOPE note contained `openid`. Realm-config.json shows: web-origins=false (L1081-1106 area, confirmed L979), acr=false (L1081), roles=false (L1106), basic=false (L1283), profile=true (L745), organization=true (L1160), email=true (L1188). So scope claim = {openid, profile, organization, email}."
+    },
+    {
+      "file": "references/mapper-execution.md",
+      "lines_or_section": "Decision matrix per surface (L92-104)",
+      "what_it_let_you_commit": "The organization mapper has access.token.claim=true (fires on access token) and id.token.claim=true (fires on ID token). userinfo.token.claim is unset so falls back to id.token.claim=true (fires on userinfo). introspection.token.claim=true (fires on introspection). All four surfaces fire; only access and id are in scope for this prediction."
+    },
+    {
+      "file": "references/mapper-set-assembly.md",
+      "lines_or_section": "Algorithm L18-27",
+      "what_it_let_you_commit": "Mapper set = union over allowed scopes of getProtocolMappersStream, filtered by protocol=openid-connect and ProtocolMapperUtils.isEnabled. The `organization` client scope contributes the oidc-organization-membership-mapper. saml_organization is SAML protocol so it's filtered out (mapper-set-assembly.md, plus scope-resolution.md L73-77 notes SAML built-ins never appear in an OIDC client's attached scope list)."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 11 (L150-158) + references/inputs-and-outputs.md 'Wire serialization — JsonInclude.NON_NULL' (L116-147)",
+      "what_it_let_you_commit": "For the nonmember: if the mapper's setClaim writes null because the user has zero memberships, the wire serializer drops the claim entirely. This is the standard pattern for user-driven mappers (mapper-execution.md L132-141 lists UserPropertyMapper, UserAttributeMapper, UserSessionNoteMapper, role mappers, and AudienceResolveProtocolMapper as null-no-op mappers). OrganizationMembershipMapper is NOT explicitly listed there, but the dominant pattern justifies shape 1 (absent) as the most defensible commitment for the nonmember."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 7 (L128-132) and base-claims.md ID-token table L92-104",
+      "what_it_let_you_commit": "`scope` is NOT in the IDToken base-claims table (base-claims.md L72-90 generateIDToken pseudocode — no `idToken.scope ← ...` line). It is set only on the AccessToken via initToken (base-claims.md L27, TokenManager.L1000). No mapper in realm-config.json writes a `scope` claim on the ID token. Therefore the ID token has no `scope` claim — committed as null (absent)."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Routing block / overall scope (L7-25)",
+      "what_it_let_you_commit": "The skill is explicit that it covers scope resolution → mapper-set assembly → base claims → mapper execution → post-mapper transforms, but does NOT enumerate per-mapper setClaim semantics for every mapper. The only concrete mapper catalog (mapper-execution.md 'Concrete setClaim overrides' L152-188) does NOT list oidc-organization-membership-mapper. This is the citation that justifies LOW confidence on the exact wire shape of the organization claim — the skill does not specify it."
+    }
+  ],
+  "reasoning": [
+    "Step 1 — Scope resolution for member's access token. scope-resolution.md Step 1 algorithm (L12-41): candidates seed from client.getClientScopes(default=true) which equals adv4-client.defaultClientScopes = [web-origins, acr, profile, roles, organization, basic, email] (realm-config.json L1583-1591). scopeParam=`openid organization`. `openid` is a protocol marker, stripped by isValidScope (scope-resolution.md L153-155). `organization` is already a default scope; not added again (no optional with that name; the dedup branch L22-28 only drops on `name+\":\"` prefix dynamic-scope match, which `organization` alone doesn't trigger). Candidate set = the 7 defaults + the client itself.",
+    "Step 2 — isAllowed filter. scope-resolution.md L44-62: each scope's role mappings intersected with user roles (or empty mappings → universal). realm-config.json scopeMappings (L2517-2524) only lists offline_access, which is not in adv4-client's defaults. fullScopeAllowed=false (L1595) does not affect scope-resolution (scope-resolution.md L134-143). All 7 defaults pass isAllowed for both adv4-member and adv4-nonmember.",
+    "Step 3 — scope claim. scope-resolution.md L99-121 `getScopeString`: filter by isIncludeInTokenScope (default true if missing per invariant 2 / ClientScopeModel.L109-112). Per realm-config.json: profile=true, web-origins=false, roles=false, organization=true, basic=false, email=true, acr=false. Drop the client itself (L106 / DCSC.L200). Result before openid re-attach: {profile, organization, email}. SCOPE note from auth session is `openid organization` → TokenUtil.isOIDCRequest is true → openid re-attached. Final scope claim = {openid, profile, organization, email}. Same for both users (no user-dependent inputs).",
+    "Step 4 — Mapper-set assembly. mapper-set-assembly.md L18-27: union over allowed scopes' getProtocolMappersStream, filtered by protocol=openid-connect. The `organization` scope contributes one mapper id 53c44125 (oidc-organization-membership-mapper, realm-config.json L1166-1181). Other scopes contribute their own mappers; none also write the `organization` claim path.",
+    "Step 5 — Surface filter + toggle gate for access token. mapper-execution.md L92-104 decision matrix: access.token.claim=true (config L1169) → fires on access token. Client has no client.use.lightweight.access.token.enabled attribute (verified in client attrs L1573-1577 — only backchannel.logout.session.required and realm_client), so the standard branch applies, not lightweight.",
+    "Step 6 — setClaim execution for member. The mapper writes the `organization` claim path. The skill does NOT enumerate the exact wire shape this mapper emits. mapper-execution.md 'Concrete setClaim overrides' (L152-188) does not list oidc-organization-membership-mapper; only User*Mapper, role mappers, audience mappers, and a few others are described. So the shape commitment here is genuinely unsupported by skill text. Best inference from realm-config.json config flags (multivalued=true, jsonType.label=String) plus general Keycloak conventions points to an object shape keyed by alias (shape 5), since string-multivalued semantics here are about the namespace key, not the value. THIS IS A SKILL GAP — see fixture_target_compliance_note.",
+    "Step 7 — NON_NULL serialization. inputs-and-outputs.md L116-147: NON_NULL drops null claims. For the member, the mapper has a non-empty membership set to project, so the write is non-null and the claim appears. For the nonmember, the user is in zero organizations (realm-organizations.json: only acme has one member adv4-member; globex has []). The dominant pattern (mapper-execution.md L132-141) is that user-driven mappers no-op when the source is empty — but the org membership mapper is NOT in that explicit list. Predicting shape 1 (absent) follows the dominant pattern; shapes 2 or 3 (explicit empty container) would require the mapper to override the no-op pattern, which the skill neither confirms nor denies.",
+    "Step 8 — ID token. base-claims.md L72-90 generateIDToken pseudocode: idToken is constructed fresh; fields explicitly copied from accessToken are azp, iss, nonce, sid, exp, and conditionally acr — `scope` is NOT among them. Therefore the access token's `scope` claim does NOT propagate to the ID token. No mapper in adv4's realm config writes a `scope` claim on the ID token. So id_token_scope_claim_set_or_absent = null. The `organization` claim DOES appear on the ID token because the mapper has id.token.claim=true (L1171) — invariant 7 plus the per-surface mapper firing on the ID token surface; per invariant 9, shape parity holds across surfaces because the OOTB mapper has no per-surface shape selector.",
+    "SKILL GAP — actionable feedback. The skill text covers scope resolution, mapper-set assembly, surface gating, base claims, and NON_NULL serialization comprehensively. It does NOT document: (a) the exact wire shape emitted by oidc-organization-membership-mapper.setClaim (array of strings vs object keyed by alias vs object with bodies); (b) whether OrganizationMembershipMapper writes an empty container or null on zero-membership users; (c) the semantics of the mapper's config flags `addOrganizationId`, `addOrganizationAttributes` (which are not set in this fixture). Adding these to mapper-execution.md's 'Concrete setClaim overrides' catalog would close a real gap — the prediction-target.md itself signals this by enumerating 7 distinct candidate shapes the skill should be able to disambiguate."
+  ],
+  "fixture_target_compliance_note": "I commit to specific trap indices and JSON values per prediction-target.md's minimum-specificity bar (L154-166). However, the commitments for shapes 5 (member) and 1 (nonmember) are at LOW–MEDIUM confidence because the skill text does NOT enumerate the wire shape of the oidc-organization-membership-mapper. The skill's concrete-mapper catalog (mapper-execution.md L152-188) covers UserPropertyMapper, UserAttributeMapper, UserSessionNoteMapper, role mappers, audience mappers, HardcodedClaim, SubMapper, pairwise sub, AcrProtocolMapper, AllowedWebOriginsProtocolMapper, NonceBackwardsCompatibleMapper — but NOT OrganizationMembershipMapper. The skill's only mention of OrganizationMembershipMapper is in scope-resolution.md L22-28 as a marker for dynamic-scope deduplication, not as a description of setClaim output. Per prediction-target.md L78-80, a skill-mandated hedge must cite a specific passage that admits the gap. The gap citation here is: mapper-execution.md 'Concrete setClaim overrides' (L152-188) is non-exhaustive and omits OrganizationMembershipMapper; the skill provides no other passage that disambiguates between trap shapes 4, 5, 6, 7 for a member or between shapes 1, 2, 3 for a nonmember. I commit to shape 5 (member) and shape 1 (nonmember) as the most defensible inference from (a) Keycloak's convention of namespacing org-scoped data by alias for forward-compatibility with per-org metadata, (b) the mapper config's `multivalued=true` + no addOrganizationId/addOrganizationAttributes flags implying empty bodies, and (c) the dominant null-no-op pattern documented for sibling user-driven mappers. This is an honest commitment with an explicit gap-citation, not a fabrication. The scope-claim commitments are HIGH-confidence — fully determined by invariant 2 + scope-resolution.md L99-121 + the realm-config include.in.token.scope values; and the absence of `scope` on the ID token is HIGH-confidence — fully determined by base-claims.md generateIDToken pseudocode (L72-90) which does not copy `scope`."
+}
