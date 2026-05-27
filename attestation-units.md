@@ -56,7 +56,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 ## 1. `realm_config`
 
-**Trigger:** edit realm name (changes `iss`), edit token lifespans (changes `exp`), edit frontend URL (changes `iss`), flip `organizationsEnabled` (silences every `organization` claim realm-wide).
+**Trigger:** edit realm name (changes `iss`), edit token lifespans (changes `exp`), edit frontend URL (changes `iss`).
 
 **Source tables:** `REALM`, `REALM_ATTRIBUTE` (filtered).
 
@@ -77,8 +77,7 @@ The signing service re-runs this same canonicalization against the live DB befor
   "offline_session_max_lifespan_seconds": "integer",
   "attributes": [
     { "name": "frontendUrl", "value": "string" },
-    { "name": "acr.loa.map", "value": "string" },
-    { "name": "organizationsEnabled", "value": "string" }
+    { "name": "acr.loa.map", "value": "string" }
   ]
 }
 ```
@@ -93,7 +92,6 @@ The signing service re-runs this same canonicalization against the live DB befor
 | `sso_*`, `client_session_*`, `offline_session_*` | Cap `exp` via `getTokenExpiration` (TokenManager.L1027). |
 | `attributes.frontendUrl` | When set, overrides the request URI in `Urls.realmIssuer(...)`, changing `iss`. |
 | `attributes."acr.loa.map"` | JSON map (LoA → ACR string). Realm-level **fallback** for `AcrProtocolMapper` under `Feature.STEP_UP_AUTHENTICATION`: the mapper resolves its LoA→ACR map by consulting per-mapper config (unit 4) first, then the client-level `acr.loa.map` (unit 2) via `AcrUtils.getAcrLoaMap(client)`, and **only when both are absent/empty** does it read this realm-level map via `AcrUtils.getAcrLoaMap(realm)`. In that fallback regime, editing this attribute changes the literal value of the `acr` claim across every issued token. |
-| `attributes.organizationsEnabled` | Per-realm gate on the entire organizations feature. When this attribute is `"false"`, `oidc-organization-membership-mapper` emits nothing — every `organization` claim disappears realm-wide regardless of `USER_GROUP_MEMBERSHIP` / `ORG` state, and dynamic `scope=organization:*` / `scope=organization:<alias>` resolution short-circuits (`references/organizations.md` §1, L6). Sits alongside the server-level `Feature.ORGANIZATION` flag, which is a deploy-time concern and intentionally out of scope; this per-realm toggle, by contrast, is admin-mutable and therefore claim-shape state that must be attested. Emit the canonical value explicitly (rather than relying on absence) so the signing service can verify "disabled" was the attested intent, not a missing attestation. |
 
 **Excluded (intentionally):**
 
@@ -104,6 +102,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 | `ssl_required` | Transport-level enforcement; not in claims. |
 | `default_signature_algorithm` | Signing-key concern (out of scope). |
 | `not_before` | Validation policy — checked when verifying tokens, not written into them. |
+| `organizationsEnabled` (realm `REALM_ATTRIBUTE`) | **Admin-API visibility only — does NOT gate token issuance.** Runtime-confirmed on vanilla KC 26.5.5 (fresh realm, sole-member user, `scope=openid organization`): flipping the realm attribute to `"false"` leaves the `organization` claim **byte-identical** (`["acme"]`) in both access and ID tokens of a freshly-minted token (new `sid`), and `organization` stays in the `scope` claim. `OrganizationMembershipMapper.resolveValue`'s only per-org emit gates are `o.isEnabled()` and `o.isMember(user)` — there is no realm-attribute check on the issuance path. The attribute's sole observed effect is admin-side (Organizations REST refuses, org groups/members hidden from the admin API) while the underlying `ORG` / `KEYCLOAK_GROUP` / `USER_GROUP_MEMBERSHIP` rows survive. By this unit's own inclusion criterion it is neither a claim source nor a claim-shape gate, so it is excluded — a verifier enforcing it would over-reject a legitimate token KC would issue. The *deploy-time* server `Feature.ORGANIZATION` flag is what actually gates the dynamic `scope=organization:*` / `organization:<alias>` resolution (`references/scope-resolution.md` L35-37), and that flag is already out of scope. |
 | Other realm attributes (SMTP, brute-force, password policy, login policy, account-management URL, browser security headers, locale lists) | None reach the OIDC claim map. |
 
 > **Caveat:** if the realm uses the step-up-authentication feature (`Feature.STEP_UP_AUTHENTICATION`), `acr` is written by `AcrProtocolMapper`. The mapper's LoA→ACR config is resolved in order: per-mapper config (unit 4), then the client-level `acr.loa.map` attribute (unit 2), then the realm-level `acr.loa.map` attribute (already in the filter above). All three are attested.
