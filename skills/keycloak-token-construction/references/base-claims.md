@@ -105,9 +105,18 @@ generateIDToken(isIdTokenAsDetachedSignature):
 | `exp` | `accessToken.getExp()` | Yes. |
 | `acr` | `accessToken.acr` (only when step-up is off) | Yes. |
 
-Implication: any access-token mapper that mutates `iss`, `sid`, `exp`, `azp`,
-or `acr` (when step-up is off) **changes the ID token's base** unless an
-ID-token mapper rewrites the field.
+Implication: an access-token mapper that successfully mutates `azp` or `acr`
+(when step-up is off) **changes the ID token's base** unless an ID-token
+mapper rewrites the field. The same is *not* true for `iss` and `exp`: both
+are in the `notAllowedInToken` set inside `OIDCAttributeMapperHelper.mapClaim`,
+so mapper writes against those names are dropped with a `WARN  Claim 'X' is
+non-modifiable in IDToken` log and the base value stands. `sid` is a third
+case — it has no entry in `tokenPropertySetters` at all, so a mapper write
+routes into `otherClaims["sid"]` while the dedicated `JsonWebToken.sid` field
+continues to serialize, producing a **duplicate `"sid"` key on the wire**
+(no WARN). See [SKILL.md invariant 15](../SKILL.md) and
+[mapper-execution.md](mapper-execution.md#claim-name-routing-inside-setclaim-mapclaim-reserved-name-filter)
+for the full three-category routing.
 
 ## Userinfo "base claims"
 

@@ -1,0 +1,16 @@
+{
+  "_comment": "ROPC password grant against adv-8/adv8-client. URL-encoded form body shown as JSON for legibility. The exact wire body is grant_type=password&client_id=adv8-client&client_secret=adv8-secret&username=adv8-user&password=adv8-pw&scope=openid.",
+  "url": "http://localhost:8080/realms/adv-8/protocol/openid-connect/token",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "body_form": {
+    "grant_type": "password",
+    "client_id": "adv8-client",
+    "client_secret": "adv8-secret",
+    "username": "adv8-user",
+    "password": "adv8-pw",
+    "scope": "openid"
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "committed_value": {
+    "access_token": {
+      "azp": {
+        "routing_category": "modifiable",
+        "wire_shape": "single_key_mapper_value",
+        "value_observed_under_last_wins_parse": "OVERRIDDEN-AZP"
+      },
+      "iss": {
+        "routing_category": "non-modifiable",
+        "wire_shape": "single_key_base_value",
+        "value_observed_under_last_wins_parse": "http://localhost:8080/realms/adv-8"
+      },
+      "sid": {
+        "routing_category": "collision",
+        "wire_shape": "duplicate_keys",
+        "value_observed_under_last_wins_parse": "OVERRIDDEN-SID",
+        "first_key_serialization_origin": "dedicated_jsonproperty_field",
+        "last_key_serialization_origin": "other_claims_anygetter"
+      }
+    },
+    "id_token": {
+      "azp": {
+        "routing_category": "modifiable",
+        "wire_shape": "single_key_mapper_value",
+        "value_observed_under_last_wins_parse": "OVERRIDDEN-AZP"
+      },
+      "iss": {
+        "routing_category": "non-modifiable",
+        "wire_shape": "single_key_base_value",
+        "value_observed_under_last_wins_parse": "http://localhost:8080/realms/adv-8"
+      },
+      "sid": {
+        "routing_category": "collision",
+        "wire_shape": "duplicate_keys",
+        "value_observed_under_last_wins_parse": "OVERRIDDEN-SID",
+        "first_key_serialization_origin": "dedicated_jsonproperty_field",
+        "last_key_serialization_origin": "other_claims_anygetter"
+      }
+    },
+    "warn_log_lines_per_mint": 2,
+    "warn_logger_category": "org.keycloak.protocol.oidc.mappers.OIDCAttributeMapperHelper",
+    "warn_log_surface_meaning": "IDToken_java_class"
+  },
+  "shapes_ruled_out_by_skill": [
+    {
+      "shape": "trap 1 — all three mapper values win as single keys on both surfaces; warn_log_lines_per_mint=0",
+      "ruled_out_by": "SKILL.md invariant 15 (a)(b)(c) and references/mapper-execution.md L155-260: oidc-hardcoded-claim-mapper routes through OIDCAttributeMapperHelper.mapClaim, which applies the tokenPropertySetters reserved-name filter. `iss` is in the non-modifiable set (b) — write dropped, WARN logged. `sid` is in the collision category (c) — produces duplicate JSON keys. Only `azp` is modifiable (a) and exhibits a clean single-key mapper-value override."
+    },
+    {
+      "shape": "trap 2 — all three claims show base value as a single key; warn_log_lines_per_mint=6",
+      "ruled_out_by": "SKILL.md invariant 15 limits the notAllowedInToken sentinel/WARN to `{jti, typ, iat, exp, iss, scope, nonce, session_state}`. `azp` is in the modifiable set (mapClaim invokes token.issuedFor and replaces the base value, no WARN), and `sid` is in neither map (collision, no WARN). Therefore only `iss` produces WARNs — and only one per surface where the toggle gate passed, not all six."
+    },
+    {
+      "shape": "trap 3 — `sid` behaves like a modifiable claim (single key with OVERRIDDEN-SID, no duplicate)",
+      "ruled_out_by": "references/mapper-execution.md L217-240 + base-claims.md L113-119 explicitly identify `sid` as the canonical collision case: it is a dedicated @JsonProperty field on JsonWebToken but is NOT in tokenPropertySetters. mapClaim writes otherClaims['sid'] while the dedicated `sid` field continues to serialize, producing two `sid:` keys on the wire."
+    },
+    {
+      "shape": "trap 4 — `sid` writes silently dropped (single base-value key, no WARN, no duplicate)",
+      "ruled_out_by": "references/mapper-execution.md L228-235 confirms the empirical KC 26.5.5 shape `{...,\"sid\":\"<real-session-id>\",...,\"sid\":\"OVERRIDDEN-SID\"}` — two distinct keys, no WARN. The skill explicitly contrasts (b) WARN-drop vs (c) silent duplicate-key emission; `sid` falls into (c)."
+    },
+    {
+      "shape": "trap 5 — WARN literal `in IDToken` constrains the surface, so only 1 WARN per mint (ID-token pass only)",
+      "ruled_out_by": "SKILL.md invariant 15(b) and references/mapper-execution.md L203-209 explicitly resolve this: `Despite the log message saying 'in IDToken', the protection applies to every surface that goes through mapClaim — the message refers to the IDToken Java type (superclass of AccessToken), not to the ID-token surface.` The WARN fires once per `transform<Surface>` pass in which the mapper's toggle gate passed."
+    },
+    {
+      "shape": "warn_log_lines_per_mint=0 because mapper config has access.tokenResponse.claim=false and lightweight.claim=false",
+      "ruled_out_by": "Surface routing is governed by access.token.claim (=true) and id.token.claim (=true), per references/mapper-execution.md L286-296 decision matrix. adv8-client has no client.use.lightweight.access.token.enabled attribute (realm-config L651-655), so the standard gate applies on both surfaces. Both `iss` passes therefore fire mapClaim → notAllowedInToken sentinel → WARN. Two surfaces × one mapper writing `iss` = 2 WARNs."
+    },
+    {
+      "shape": "azp on the ID token shows the base value (client_id) because base ID claims are reset",
+      "ruled_out_by": "base-claims.md L83-104 — generateIDToken seeds idToken.azp ← accessToken.getIssuedFor() at L101 (inherits from the transformed access token), but more importantly, the ID-token mapper pass runs override-azp again on the ID-token surface (id.token.claim=true) and `azp` is modifiable, so token.issuedFor() is invoked on the IDToken object too. Result: OVERRIDDEN-AZP on both surfaces."
+    }
+  ],
+  "skill_passages_invoked": [
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 15 (L237-275)",
+      "what_it_let_you_commit": "The three-category routing: (a) modifiable {sub,azp,acr,auth_time,aud} → single key mapper-value; (b) non-modifiable {jti,typ,iat,exp,iss,scope,nonce,session_state} → WARN + base value, fires `once per surface where the mapper's toggle gate passed`; (c) collision (sid is the canonical case) → duplicate JSON keys, no WARN. Directly resolves azp=modifiable, iss=non-modifiable, sid=collision."
+    },
+    {
+      "file": "references/mapper-execution.md",
+      "lines_or_section": "L155-260 (claim-name-routing-inside-setclaim section, subsections (a)/(b)/(c) and predictor checklist)",
+      "what_it_let_you_commit": "Confirmed the empirical KC 26.5.5 verification (L173-178, L228-240): `azp` → `\"azp\":\"X\"` exactly once on AT+ID with no log; `iss` → 2 WARN lines, base value stands; `sid` → `{...,\"sid\":\"<real-session-id>\",...,\"sid\":\"OVERRIDDEN-SID\"}` two keys, no WARN. Also pins the duplicate-key serialization order: dedicated @JsonProperty getter first, then @JsonAnyGetter otherClaims last."
+    },
+    {
+      "file": "references/mapper-execution.md",
+      "lines_or_section": "L196-209 (WARN format) and L211-213 (logger)",
+      "what_it_let_you_commit": "(1) The WARN literal `Claim 'X' is non-modifiable in IDToken. Ignoring the assignment for mapper 'M'.` and its logger category `org.keycloak.protocol.oidc.mappers.OIDCAttributeMapperHelper`. (2) Per L207-209: the phrase `in IDToken` refers to the IDToken Java type (superclass of AccessToken), NOT to the ID-token surface — so the WARN fires on both AT and ID passes."
+    },
+    {
+      "file": "references/mapper-execution.md",
+      "lines_or_section": "L286-296 (Decision matrix per surface) + L298-312 (Common pitfalls)",
+      "what_it_let_you_commit": "Confirmed both surface gates pass for all three mappers: access.token.claim=true (standard branch — adv8-client lacks client.use.lightweight.access.token.enabled, so the lightweight branch doesn't apply), id.token.claim=true. Both surfaces invoke mapClaim for each mapper, so the routing in invariant 15 fires twice per mapper."
+    },
+    {
+      "file": "references/base-claims.md",
+      "lines_or_section": "L48-51 (access token base) and L83-119 (ID token base seeding from transformed access token)",
+      "what_it_let_you_commit": "Confirmed the base values present at mapper-time: access-token sid = userSession.getId() (real session UUID, non-null — grant_type=password retains sid per invariant 12), access-token iss = realm issuer URL `http://localhost:8080/realms/adv-8`. ID-token sid = accessToken.getSessionId() = real session UUID (idToken.iss reset from accessToken.iss, also the real issuer). Also confirmed the explicit pointer to invariant 15 for sid behavior (L113-119)."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 12 (L167-181)",
+      "what_it_let_you_commit": "Rules OUT the transient-sid-nulling branch: invariant 12 fires only on grant_type=client_credentials when client_credentials.use_refresh_token is unset (default). This is grant_type=password, so sid is retained on the access token. Therefore the dedicated @JsonProperty field carries a real, non-null session UUID — exactly the precondition for the duplicate-key emission in (c). Without retained sid, NON_NULL would drop the dedicated field and only the otherClaims entry would render."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 11 (L159-165) + invariant 6 (L121-129)",
+      "what_it_let_you_commit": "Invariant 11: the three hardcoded-claim mapper writes have non-null constant `claim.value` strings, so NON_NULL cannot drop them on any path the routing keeps. Invariant 6: fullScopeAllowed=false on adv8-client affects role intersection but not mapper dispatch, so the three client-level mappers still run."
+    }
+  ],
+  "reasoning": "Pipeline walk for grant_type=password against adv-8/adv8-client with scope=openid.\n\nStep 1 — Scope resolution. Default scopes web-origins, acr, profile, roles, basic, email all load (none has scopeMappings that would block this user). `openid` is a marker, not a scope object. Allowed scopes are the defaults + client itself. None of those scopes contribute mappers writing azp/iss/sid.\n\nStep 2 — Mapper-set assembly. The client's three protocolMappers (override-azp / override-iss / override-sid, all oidc-hardcoded-claim-mapper) are added (mapper-set-assembly: client-level mappers always enter the union, gated only by client.protocol==openid-connect and isEnabled). Default-scope mappers (acr, sub, audience-resolve, role mappers, user attribute mappers) also enter but write disjoint claim paths.\n\nStep 3 — Base claims (initToken on AccessToken). azp ← client.getClientId() = `adv8-client`; iss ← `http://localhost:8080/realms/adv-8`; sid ← userSession.getId() = real session UUID (invariant 12 transient-nulling does NOT fire for password grant). jti, typ, iat, exp also set.\n\nStep 4 — transformAccessToken. For each of the three hardcoded-claim mappers: access.token.claim=true → gate passes (lightweight branch inapplicable, client has no lightweight attr). setClaim → OIDCAttributeMapperHelper.mapClaim with single-segment claim.name:\n  • override-azp: `azp` ∈ tokenPropertySetters modifiable set → token.issuedFor(\"OVERRIDDEN-AZP\"). Base value replaced. No otherClaims write. No log. (SKILL inv15a; mapper-execution.md L160-178.)\n  • override-iss: `iss` ∈ notAllowedInToken non-modifiable set → sentinel logs WARN `Claim 'iss' is non-modifiable in IDToken. Ignoring the assignment for mapper 'override-iss'.` at category org.keycloak.protocol.oidc.mappers.OIDCAttributeMapperHelper, write dropped. Base `http://localhost:8080/realms/adv-8` stands. (SKILL inv15b; mapper-execution.md L180-213.) WARN #1.\n  • override-sid: `sid` is NOT in either tokenPropertySetters map but IS a declared @JsonProperty field on JsonWebToken → fall through to otherClaims[\"sid\"]=\"OVERRIDDEN-SID\". Dedicated sid field unchanged (still real session UUID). No log. (SKILL inv15c; mapper-execution.md L215-240.)\n\nStep 5 — Post-mapper transforms. restrictRequestedAudience does not fire (no REQUESTED_AUDIENCE_CLIENTS). Transient-sid-nulling (invariant 12) does not fire (password grant). Access token serialization (Jackson default order on JsonWebToken / AccessToken): dedicated @JsonProperty fields first in declared/Jackson-discovered order (including the dedicated sid: <real UUID>), then @JsonAnyGetter otherClaims (including sid: OVERRIDDEN-SID) — emits two `sid` keys, dedicated field first, otherClaims last. Under last-wins parse (json.loads / jq), the second occurrence wins → value = OVERRIDDEN-SID. `azp` appears exactly once as OVERRIDDEN-AZP. `iss` appears exactly once as the base issuer.\n\nStep 6 — generateIDToken. Seeds idToken from transformed access token: idToken.azp ← accessToken.getIssuedFor() = OVERRIDDEN-AZP; idToken.iss ← accessToken.getIssuer() = base issuer (mapper write was dropped on AT); idToken.sid ← accessToken.getSessionId() = real session UUID (the dedicated field on AccessToken was never overwritten; only otherClaims got OVERRIDDEN-SID — and otherClaims is not copied here, only individual setters). Then transformIDToken runs the three hardcoded-claim mappers again on the IDToken surface (id.token.claim=true for all three):\n  • override-azp → token.issuedFor(\"OVERRIDDEN-AZP\") on IDToken. Single key, mapper value, no log.\n  • override-iss → notAllowedInToken sentinel → WARN #2 (same logger, same message text), idToken.iss base value stands.\n  • override-sid → otherClaims[\"sid\"]=\"OVERRIDDEN-SID\" on IDToken. Dedicated sid field still holds real UUID. Duplicate key on ID-token wire too.\n\nTotal WARN per mint = 2 (one for the AT pass on `iss`, one for the ID-token pass on `iss`). Invariant 15(b) explicitly: `a mapper with access.token.claim=true and id.token.claim=true writing iss produces *two* identical WARN lines per token mint`. Invariant 15 also explicitly states the phrase `in IDToken` refers to the IDToken Java superclass, not the surface — so warn_log_surface_meaning = IDToken_java_class.\n\nFor the duplicate-key emission origin on sid: Jackson serializes the `@JsonProperty(\"sid\")` getter on JsonWebToken (the dedicated field) as part of the bean's regular getter discovery, BEFORE the `@JsonAnyGetter`-annotated otherClaims getter which is emitted last. Therefore first_key_serialization_origin=dedicated_jsonproperty_field (value = real session UUID); last_key_serialization_origin=other_claims_anygetter (value = OVERRIDDEN-SID). Last-wins parse → OVERRIDDEN-SID.\n\nWhere the skill text is ambiguous or insufficient: (i) The skill never spells out the exact Jackson serialization order for JsonWebToken (dedicated fields then @JsonAnyGetter); it cites the empirical example `{...,\"sid\":\"<real-session-id>\",...,\"sid\":\"OVERRIDDEN-SID\"}` (mapper-execution.md L228-233) which fixes the order but only by appeal to one observed token, not by appeal to a Jackson rule. The prediction-target field `first_key_serialization_origin` requires the prediction to commit to that order, which the skill only supports through the example, not through a stated rule. (ii) The exact base `iss` URL (`http://localhost:8080/realms/adv-8`) is inferred from the request URL host/realm, which the skill anchors as `realm issuer URL` in base-claims.md L23-25 but does not pin to a specific deployment URL pattern; the prediction assumes the standard Keycloak issuer format `<frontend-url>/realms/<realm>`.",
+  "fixture_target_compliance_note": "The prediction commits to a concrete value for every required field in prediction-target.md's `Required output shape`. All three claim names are resolved through invariant 15's three-category routing (azp=a, iss=b, sid=c). The WARN count is committed as 2 (per invariant 15b cardinality `once per surface where the mapper's toggle gate passed` × two surfaces × one non-modifiable claim). The logger category is committed as the exact dotted classname from mapper-execution.md L197 and L211-213. The warn_log_surface_meaning is committed to IDToken_java_class per invariant 15b L207-209 explicit resolution. The sid duplicate-key origins are committed per the empirical Jackson example in mapper-execution.md L228-235 (dedicated field first, otherClaims last). The only string permitted to use the `<real_userSession_getId_value>` literal is the sid first-key value — but since the question asks for last-wins parse value (which is OVERRIDDEN-SID for both surfaces), no literal placeholder is needed in any value_observed_under_last_wins_parse field. No item is hedged."
+}

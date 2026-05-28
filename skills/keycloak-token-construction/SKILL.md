@@ -235,6 +235,45 @@ references back them up with line numbers.
     [references/mapper-execution.md](references/mapper-execution.md#mappers-that-override-the-gate-role-injection-class)
     and fixture `adversarial-7`.
 
+15. **Mapper writes to a base-claim name fall into three categories, only
+    one of which actually overrides the base value.**
+    `OIDCAttributeMapperHelper.mapClaim` looks up the leading path segment
+    in a static `tokenPropertySetters` map before falling through to
+    `otherClaims`. Three outcomes are possible for a single-segment claim
+    name `X`:
+    (a) **Modifiable** — `X ∈ {sub, azp, acr, auth_time, aud}`. `mapClaim`
+    invokes a dedicated `PropertySetter` against the token object
+    (`token.setSubject`, `token.issuedFor`, `token.setAcr`,
+    `token.setAuth_time`, `token.audience`). The base value set by
+    `initToken` / `generateIDToken` is replaced. Exactly one JSON key is
+    emitted, mapper's value wins, no log.
+    (b) **Non-modifiable (server-owned)** — `X ∈ {jti, typ, iat, exp, iss,
+    scope, nonce, session_state}`. `mapClaim` invokes a sentinel
+    `notAllowedInToken` setter that logs `WARN Claim '<X>' is
+    non-modifiable in IDToken. Ignoring the assignment for mapper
+    '<mapperName>'.` and drops the write. The base value stands. The WARN
+    fires once per surface where the mapper's toggle gate passed (e.g. a
+    mapper with `access.token.claim=true` and `id.token.claim=true`
+    writing `iss` emits two WARN lines per token mint).
+    (c) **Collision (silent, hazardous)** — any other name that happens
+    to be a dedicated `@JsonProperty` field on `JsonWebToken` / `IDToken`
+    / `AccessToken` but is **not** in either map. `sid` is the canonical
+    case: `mapClaim` writes `otherClaims["sid"]`, but the dedicated `sid`
+    field still serializes via its `@JsonProperty("sid")` — so the JSON
+    body contains **two `"sid":` keys**. No WARN. Parsers that take
+    last-wins observe the mapper value; parsers that take first-wins
+    observe the real session id. Treat any mapper writing to a base-claim
+    name outside the modifiable/non-modifiable sets as producing an
+    ill-formed token; do not predict either value as authoritative.
+    The five `tokenPropertySetters` setters bypass `otherClaims` entirely,
+    so the modifiable case never produces a duplicate key. Multi-segment
+    claim paths (`foo.bar`) never hit this filter; they always route into
+    `otherClaims` and never collide with base-claim names. Verified
+    empirically against KC 26.5.5 for `azp` (modifiable, single key),
+    `iss` (WARN-dropped twice on AT+ID surfaces), and `sid` (duplicate
+    JSON key, no WARN). See
+    [references/mapper-execution.md](references/mapper-execution.md#claim-name-routing-inside-setclaim-mapclaim-reserved-name-filter).
+
 ## When to consult fixtures
 
 The `fixtures/` directory ships eight `(request, log, token)` triples — four on

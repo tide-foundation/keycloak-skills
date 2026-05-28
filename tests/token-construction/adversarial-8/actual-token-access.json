@@ -1,0 +1,18 @@
+{
+  "acr": "1",
+  "azp": "OVERRIDDEN-AZP",
+  "email": "adv8-user@example.com",
+  "email_verified": true,
+  "exp": 1779956747,
+  "family_name": "Eight",
+  "given_name": "Adv",
+  "iat": 1779956447,
+  "iss": "http://localhost:8080/realms/adv-8",
+  "jti": "onrtro:487a34fb-117e-6b7c-dc29-1956494b1064",
+  "name": "Adv Eight",
+  "preferred_username": "adv8-user",
+  "scope": "openid profile email",
+  "sid": "OVERRIDDEN-SID",
+  "sub": "7131faf9-d68c-4e63-8d76-cf0f668aa27b",
+  "typ": "Bearer"
+}
