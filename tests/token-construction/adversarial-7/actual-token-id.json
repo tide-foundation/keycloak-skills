@@ -1,0 +1,24 @@
+{
+  "acr": "1",
+  "at_hash": "6K0nLH0KTW5Ish30iQgxVA",
+  "aud": "adv7-client",
+  "azp": "adv7-client",
+  "email": "adv7@example.org",
+  "email_verified": true,
+  "exp": 1779932624,
+  "family_name": "Seven",
+  "given_name": "Adv",
+  "iat": 1779932324,
+  "iss": "http://localhost:8080/realms/adv-7",
+  "jti": "8aa9f9d8-c14e-1fb7-cda0-1f9d9b25c235",
+  "name": "Adv Seven",
+  "preferred_username": "adv7-user",
+  "realm_access": {
+    "roles": [
+      "unassigned-realm-role"
+    ]
+  },
+  "sid": "iXmruSuZqsQOYwaxahUS9EQh",
+  "sub": "f9b46f71-a490-4bee-b806-fac51eb1a614",
+  "typ": "ID"
+}

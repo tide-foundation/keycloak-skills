@@ -1,0 +1,31 @@
+{
+  "acr": "1",
+  "aud": "adv7-resource",
+  "azp": "adv7-client",
+  "email": "adv7@example.org",
+  "email_verified": true,
+  "exp": 1779932624,
+  "family_name": "Seven",
+  "given_name": "Adv",
+  "iat": 1779932324,
+  "iss": "http://localhost:8080/realms/adv-7",
+  "jti": "onrtro:318b2ef0-4bad-4641-ffb1-a72152cf2475",
+  "name": "Adv Seven",
+  "preferred_username": "adv7-user",
+  "realm_access": {
+    "roles": [
+      "unassigned-realm-role"
+    ]
+  },
+  "resource_access": {
+    "adv7-resource": {
+      "roles": [
+        "resource-reader"
+      ]
+    }
+  },
+  "scope": "openid profile email",
+  "sid": "iXmruSuZqsQOYwaxahUS9EQh",
+  "sub": "f9b46f71-a490-4bee-b806-fac51eb1a614",
+  "typ": "Bearer"
+}

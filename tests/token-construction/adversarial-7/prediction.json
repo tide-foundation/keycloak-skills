@@ -1,0 +1,77 @@
+{
+  "access_token": {
+    "realm_role": "present",
+    "client_role": "present",
+    "aud_resource": "present"
+  },
+  "id_token": {
+    "realm_role": "present",
+    "client_role": "absent",
+    "aud_resource": "absent"
+  },
+  "userinfo": {
+    "realm_role": "present",
+    "client_role": "absent"
+  },
+  "bypass_relevance": "irrelevant",
+  "reasoning": "Pipeline walk for grant_type=password, client_id=adv7-client (fullScopeAllowed=false, no lightweight attribute — only realm_client:false — so the standard access-token gate `access.token.claim==true` applies, not lightweight), scope=openid. The `roles` client scope is a default scope on adv7-client, so its three consumer mappers are in the mapper set on every surface.\n\nHARDCODED ROLE INJECTION (SKILL.md invariant 14 + references/mapper-execution.md L94-146 'Mappers that override the gate'). Both `oidc-hardcoded-role-mapper` instances (hc-realm-role -> realm role `unassigned-realm-role`; hc-client-role -> client role `adv7-resource.resource-reader`) OVERRIDE transformAccessToken/transformUserInfoToken/transformIntrospectionToken and call setClaim unconditionally. Their config carries NO `*.token.claim` keys, so the fires_on_surface pseudocode that gates on `access.token.claim==true` MISPREDICTS them as skipped (defeats trap-menu #1). setClaim does NOT write realm_access/resource_access directly; it appends the role to the RoleResolveUtil resolved-roles cache (session attribute RESOLVED_ROLES:<userSessionId>:<clientId>, built from clientSessionCtx.getRolesStream()). Because the append happens AFTER getRolesStream() resolved the user's real roles, it bypasses fullScopeAllowed AND the role allowlist (invariant 6 short-circuits intersection, not this injection) — so the fact that adv7-user holds neither role and fullScopeAllowed=false is IRRELEVANT (defeats trap-menu #2). The priority chain PRIORITY_HARDCODED_ROLE_MAPPER=20 < AUDIENCE_RESOLVE=30 < ROLE_MAPPER=40 guarantees the injection lands in the cache before any consumer reads it; the routing is deterministic (defeats the 'depends on mapper order' non-prediction).\n\nThe role reaches a token ONLY via consumer mappers, gated by THEIR toggles (defeats trap-menu #3, which treats 'fired' as 'on every surface'). The relevant consumers are the three mappers on the `roles` scope, whose toggles DIFFER:\n- `realm roles` (oidc-usermodel-realm-role-mapper, claim.name=realm_access.roles): access.token.claim=true, id.token.claim=true, introspection.token.claim=true, userinfo.token.claim UNSET.\n- `client roles` (oidc-usermodel-client-role-mapper, claim.name=resource_access.${client_id}.roles): access.token.claim=true, introspection.token.claim=true, multivalued=true; id.token.claim UNSET, userinfo.token.claim UNSET.\n- `audience resolve` (oidc-audience-resolve-mapper): access.token.claim=true, introspection.token.claim=true; id.token.claim UNSET, userinfo.token.claim UNSET.\n\nACCESS TOKEN (gate: access.token.claim==true). realm roles fires -> realm_access.roles contains `unassigned-realm-role` => PRESENT. client roles fires -> resource_access[adv7-resource].roles contains `resource-reader` => PRESENT. audience resolve fires; the hardcoded client role's owning client adv7-resource is in the cache and not yet in aud, so it is added => aud contains `adv7-resource` => PRESENT (defeats trap-menu #4, which severs the client-role injection from the audience-resolve mapper; references/mapper-execution.md L129).\n\nID TOKEN. HardcodedRole never runs on the ID surface (it does NOT implement OIDCIDTokenMapper, L110), BUT the resolved-roles cache is keyed by session, not by surface (L139-142), so it is already populated from the access-token pass and ID-surface consumers see it. Inheritance invariant 7 is not the deciding factor here: realm_access/resource_access are written by ID-token mappers, not seeded base claims, so I check each consumer's id.token.claim per the prediction-target's explicit instruction. realm roles: id.token.claim=true -> fires -> realm_access.roles contains `unassigned-realm-role` => PRESENT. client roles: id.token.claim UNSET (default false, references/mapper-execution.md L88) -> does NOT fire -> resource_access[adv7-resource] not written => ABSENT. audience resolve: no id.token.claim -> does NOT fire on ID token; adv7-resource therefore not added to aud => aud_resource ABSENT.\n\nUSERINFO (gate: userinfo.token.claim if set else id.token.claim — invariant 5 / L63-67). realm roles: userinfo.token.claim UNSET -> falls back to id.token.claim=true -> fires -> realm_access.roles contains `unassigned-realm-role` => PRESENT. client roles: userinfo.token.claim UNSET -> falls back to id.token.claim which is also UNSET (false) -> does NOT fire -> resource_access[adv7-resource] => ABSENT.\n\nNON_NULL (invariant 11) does not drop any PRESENT claim: each writes a non-null array containing the injected role. This is trap-menu #6 (a mixed combination): the realm role surfaces everywhere, but the client role and aud_resource appear only on the access token because this realm's client-roles and audience-resolve mappers lack id/userinfo toggles.",
+  "shapes_ruled_out_by_skill": [
+    {
+      "shape": "Everything absent on every surface (trap #1)",
+      "ruled_out_by": "SKILL.md invariant 14 + references/mapper-execution.md L94-117: oidc-hardcoded-role-mapper overrides the transform methods and never reads `access.token.claim`; its config has no `*.token.claim` keys. Applying the fires_on_surface pseudocode literally mispredicts it as skipped. It fires unconditionally on every surface whose interface it implements."
+    },
+    {
+      "shape": "Everything absent because user lacks the roles and fullScopeAllowed=false (trap #2)",
+      "ruled_out_by": "references/mapper-execution.md L143-146 + SKILL.md invariant 14: the injection is appended AFTER getRolesStream() resolved real roles, so it bypasses fullScopeAllowed and the allowlist. The user need not hold the role. Invariant 6 short-circuits role INTERSECTION, not this injection."
+    },
+    {
+      "shape": "All three effects present uniformly on access, ID and userinfo (trap #3)",
+      "ruled_out_by": "references/mapper-execution.md L110, L131-135: HardcodedRole does NOT implement OIDCIDTokenMapper and never runs on the ID surface; the claim is actually written by CONSUMER mappers (UserRealmRoleMappingMapper / UserClientRoleMappingMapper / AudienceResolveProtocolMapper) whose per-surface toggles differ in this realm. 'Fired' is not 'on the wire on every surface.'"
+    },
+    {
+      "shape": "Role claims right but aud never contains adv7-resource (trap #4)",
+      "ruled_out_by": "references/mapper-execution.md L129, L136-139: the audience-resolve mapper (priority 30) reads the resolved-roles cache after the hardcoded client-role injection (priority 20) and adds the owning client adv7-resource to aud. On the access token (access.token.claim=true) it fires => aud_resource present."
+    },
+    {
+      "shape": "Access effects present; ALL ID and userinfo effects absent (trap #5)",
+      "ruled_out_by": "realm-config roles scope: the `realm roles` mapper has id.token.claim=true, which also satisfies the userinfo fallback (invariant 5). So realm_role is PRESENT on ID and userinfo. Only the client-role and aud effects drop on ID/userinfo (those consumers lack id.token.claim). Over-applying 'roles aren't in ID/userinfo by default' ignores this realm's actual realm-roles toggle."
+    },
+    {
+      "shape": "client_role written as resource_access[adv7-resource] on ID token or userinfo",
+      "ruled_out_by": "references/mapper-execution.md L88 (id.token.claim default false) + L63-67 (userinfo falls back to id.token.claim): the `client roles` mapper config sets neither id.token.claim nor userinfo.token.claim, so it fires on neither surface."
+    }
+  ],
+  "skill_passages_invoked": [
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 14 (L203-236) — role-injection mappers bypass the toggle gate, write to a cache, surface via consumer mappers; never implement OIDCIDTokenMapper; bypass fullScopeAllowed/allowlist; priority chain 20<30<40",
+      "what_it_let_you_commit": "Resolved that the hardcoded mappers fire unconditionally (not skipped by missing *.token.claim keys), that they surface only through consumer mappers gated by the consumers' toggles, that they never directly affect the ID token, and that the user-holding-the-role / fullScopeAllowed facts are irrelevant."
+    },
+    {
+      "file": "references/mapper-execution.md",
+      "lines_or_section": "L94-146 (Mappers that override the gate: role-injection class) — interface table L108-117, cache mechanics L119-129, consumer-toggle routing L131-146",
+      "what_it_let_you_commit": "Mapped each hardcoded role to its consumer (UserRealmRoleMappingMapper -> realm_access, UserClientRoleMappingMapper -> resource_access, AudienceResolveProtocolMapper -> aud) and established that the session-scoped cache makes the injection visible to ID-surface consumers even though HardcodedRole never runs on the ID surface."
+    },
+    {
+      "file": "references/mapper-execution.md",
+      "lines_or_section": "L58-67 (include_in_id_token, include_in_userinfo) + L84-92 (toggle-key defaults) + L148-160 (decision matrix)",
+      "what_it_let_you_commit": "Resolved per-surface firing of the three roles-scope consumer mappers: realm roles (id.token.claim=true -> ID and userinfo via fallback), client roles + audience resolve (id.token.claim unset -> off on ID and userinfo)."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 5 (L116-119) — userinfo falls back to id.token.claim",
+      "what_it_let_you_commit": "Committed userinfo realm_role PRESENT (realm-roles mapper id.token.claim=true) and userinfo client_role ABSENT (client-roles mapper id.token.claim unset)."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 11 (L156-165) — NON_NULL drops null claims",
+      "what_it_let_you_commit": "Confirmed the PRESENT claims are not dropped: each consumer writes a non-null array containing the injected role; absences are due to the gate failing (case b), not null writes (case c)."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "Invariant 6 (L121-129) — fullScopeAllowed short-circuits role intersection, not mapper dispatch",
+      "what_it_let_you_commit": "Confirmed fullScopeAllowed=false does not suppress the injected roles, because the injection bypasses intersection entirely (irrelevant verdict for bypass_relevance)."
+    }
+  ],
+  "fixture_target_compliance_note": "Every field holds a concrete present/absent (and bypass_relevance=irrelevant) value with no hedge. The skill TEXT ALONE (SKILL.md invariant 14 + references/mapper-execution.md L94-160) was fully sufficient; no upstream WebFetch was needed — this fixture is the named anchor for invariant 14 and the skill spells out (a) the missing *.token.claim keys do NOT suppress the mapper (it overrides the gate), (b) the consumer mappers write the claim and this realm's per-surface toggles differ (realm-roles: id+userinfo on; client-roles + audience-resolve: id+userinfo off), and (c) the user holding the role is irrelevant (cache append bypasses allowlist). Required sub-resolutions (a)/(b)/(c) from prediction-target L137-141 all resolved. This is a mixed combination (trap-menu #6): realm_role present on all three surfaces; client_role and aud_resource present only on the access token. No passage was genuinely ambiguous; the only thing the skill deliberately does not assert is exact array ordering, which these committed present/absent questions do not require."
+}

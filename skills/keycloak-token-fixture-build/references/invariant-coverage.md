@@ -21,6 +21,7 @@ or retiring an old one.
 | 11 | NON_NULL drops null claims | adversarial-1 (collateral), adversarial-2 (collateral), adversarial-4 (nonmember case, dedicated), adversarial-5 (multi-member static case, dedicated) | covered — adv-4 + adv-5 both produce intentional NON_NULL drops on the `organization` claim |
 | 12 | Transient `sid` nulling on `useRefreshToken=false` + TRANSIENT | adversarial-3 | covered (PASS) |
 | 13 | `organization` claim — three scope-param entry paths with materially different behaviour | adversarial-4 (single-member + nonmember, wire shape), adversarial-5 (multi-member unqualified → claim absent), adversarial-6 (specific / wildcard / nonexistent dynamic forms) | covered — three dedicated fixtures, motivated the new `references/organizations.md` |
+| 14 | Role-injection mappers (`oidc-hardcoded-role-mapper`, `oidc-role-name-mapper`) bypass the toggle gate, write to the `RoleResolveUtil` resolved-roles cache (not a claim path), surface only via consumer role/audience mappers per *their* toggles, never run on the ID surface, and bypass `fullScopeAllowed` | adversarial-7 | covered — fixture caught a skill gap (HardcodedRole was undocumented; the toggle pseudocode read literally forced "everything absent"), motivated invariant 14 + the role-injection-class subsection in `references/mapper-execution.md`. Pre-edit predictor needed the WebFetch escape; post-edit predictor reported skill text alone sufficient. |
 
 ## What "covered" means
 

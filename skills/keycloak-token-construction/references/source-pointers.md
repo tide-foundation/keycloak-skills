@@ -138,6 +138,17 @@ upstream Keycloak repository on GitHub.
 A per-mapper catalog (claim path written, surface defaults, edge cases) is the
 next research phase and is not yet part of this skill.
 
+### Role-injection mappers and the resolved-roles cache (invariant 14)
+
+| Source | Key lines | What it establishes |
+| --- | --- | --- |
+| [`.../mappers/HardcodedRole.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/HardcodedRole.java) | `transformAccessToken`/`transformUserInfoToken`/`transformIntrospectionToken` call `setClaim` unconditionally; `setClaim` calls `RoleResolveUtil.getResolved{Realm,Client}Roles(...,true).addRole(...)` | No toggle gate; implements `OIDCAccessTokenMapper`/`UserInfoTokenMapper`/`TokenIntrospectionTokenMapper` only (no `OIDCIDTokenMapper`); writes the cache, not a claim. `PROVIDER_ID = oidc-hardcoded-role-mapper`. |
+| [`.../mappers/RoleNameMapper.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/RoleNameMapper.java) | same override pattern; removes a role and re-adds it under a new name | Same override-the-gate class; `oidc-role-name-mapper`. |
+| [`.../utils/RoleResolveUtil.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/utils/RoleResolveUtil.java) | `getResolvedRealmRoles`, `getResolvedClientRoles`, `getAllResolvedClientRoles`, `getAndCacheResolvedRoles` | The cache is a side `AccessToken` on a `KeycloakSession` attribute keyed `RESOLVED_ROLES:<userSessionId>:<clientId>`, built from `clientSessionCtx.getRolesStream()`. Session-scoped, not surface-scoped. |
+| [`.../mappers/AbstractUserRoleMappingMapper.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/AbstractUserRoleMappingMapper.java), [`UserRealmRoleMappingMapper.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/UserRealmRoleMappingMapper.java), [`UserClientRoleMappingMapper.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/UserClientRoleMappingMapper.java) | `setClaim` reads `RoleResolveUtil.getResolved...Roles(..., false)` then `access.getRoles()` | The consumers that actually write `realm_access`/`resource_access`; gated normally, so per-surface toggles here govern where a hardcoded role appears. |
+| [`.../mappers/AudienceResolveProtocolMapper.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/oidc/mappers/AudienceResolveProtocolMapper.java) | `setAudience` iterates `getAllResolvedClientRoles`, `addAudience(clientId)` for any client with non-empty resolved roles | An injected client role adds its owning client to `aud`. Implements `OIDCAccessTokenMapper` + `TokenIntrospectionTokenMapper` only. |
+| [`ProtocolMapperUtils.java`](https://github.com/keycloak/keycloak/blob/26.5.5/services/src/main/java/org/keycloak/protocol/ProtocolMapperUtils.java) L77-89 | `PRIORITY_ROLE_NAMES_MAPPER`=10, `PRIORITY_HARDCODED_ROLE_MAPPER`=20, `PRIORITY_AUDIENCE_RESOLVE_MAPPER`=30, `PRIORITY_ROLE_MAPPER`=40, `PRIORITY_SCRIPT_MAPPER`=50 | The fixed priorities that make hardcoded-role routing deterministic (injection at 20 precedes audience-resolve at 30 and role-list at 40). |
+
 ## Path corrections relative to common mistakes
 
 | What you might grep for | What's actually at 26.5.5 |

@@ -1,0 +1,14 @@
+{
+    "email": "adv7@example.org",
+    "email_verified": true,
+    "family_name": "Seven",
+    "given_name": "Adv",
+    "name": "Adv Seven",
+    "preferred_username": "adv7-user",
+    "realm_access": {
+        "roles": [
+            "unassigned-realm-role"
+        ]
+    },
+    "sub": "f9b46f71-a490-4bee-b806-fac51eb1a614"
+}

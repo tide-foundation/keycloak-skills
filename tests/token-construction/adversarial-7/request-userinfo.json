@@ -1,0 +1,9 @@
+{
+  "_note": "Userinfo replay of the access token minted by request.json. No body; the access_token from request.json is sent as a Bearer token.",
+  "method": "GET",
+  "url": "http://localhost:8080/realms/adv-7/protocol/openid-connect/userinfo",
+  "headers": {
+    "Authorization": "Bearer <access_token from request.json>"
+  },
+  "curl": "curl http://localhost:8080/realms/adv-7/protocol/openid-connect/userinfo -H 'Authorization: Bearer <access_token>'"
+}

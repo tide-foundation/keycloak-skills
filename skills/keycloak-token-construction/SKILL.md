@@ -199,6 +199,42 @@ references back them up with line numbers.
     [references/organizations.md](references/organizations.md) for the full
     behavioural table and the `isValidScope` vs silent-skip clarification.
 
+14. **Role-injection mappers bypass the toggle gate, write to a cache (not
+    a claim), and surface only through consumer role mappers.** The
+    `oidc-hardcoded-role-mapper` (`HardcodedRole`) and
+    `oidc-role-name-mapper` (`RoleNameMapper`) **override**
+    `transformAccessToken` / `transformUserInfoToken` /
+    `transformIntrospectionToken` and call `setClaim` *unconditionally* —
+    they never read `access.token.claim` / `id.token.claim` / etc. Their
+    config carries no `*.token.claim` keys at all, so the
+    `fires_on_surface` pseudocode (which is for gated
+    `AbstractOIDCProtocolMapper` mappers) **mispredicts them as skipped**.
+    The only per-surface gate for this class is the surface-*interface*
+    filter: both implement `OIDCAccessTokenMapper`, `UserInfoTokenMapper`,
+    and `TokenIntrospectionTokenMapper` but **not** `OIDCIDTokenMapper`, so
+    neither ever runs on the ID-token surface. Crucially, `setClaim` does
+    not write `realm_access` / `resource_access` directly — it appends the
+    role to the `RoleResolveUtil` resolved-roles cache (a session attribute
+    keyed `RESOLVED_ROLES:<userSessionId>:<clientId>`, built from
+    `clientSessionCtx.getRolesStream()`). The role reaches a token only
+    when a **consumer** mapper reads that cache:
+    `UserRealmRoleMappingMapper` / `UserClientRoleMappingMapper`
+    (`realm_access` / `resource_access`, priority 40) and
+    `AudienceResolveProtocolMapper` (`aud`, priority 30). Therefore the
+    surface on which a hardcoded role appears is governed by the
+    **consumer's** toggles, not by the hardcoded mapper. The priority
+    chain `PRIORITY_HARDCODED_ROLE_MAPPER`=20 < audience-resolve=30 <
+    role-mapper=40 makes the routing deterministic (injection precedes
+    every read), and the cache is session- not surface-scoped, so a role
+    injected on the access-token pass is visible to an ID-token consumer
+    that fires (`id.token.claim=true`) even though `HardcodedRole` itself
+    never runs on the ID surface. Finally, because the injection is
+    appended *after* `getRolesStream()` resolved the user's real roles, it
+    **bypasses `fullScopeAllowed` and the role allowlist** (invariant 6):
+    the user need not hold the role. See
+    [references/mapper-execution.md](references/mapper-execution.md#mappers-that-override-the-gate-role-injection-class)
+    and fixture `adversarial-7`.
+
 ## When to consult fixtures
 
 The `fixtures/` directory ships eight `(request, log, token)` triples — four on

@@ -91,6 +91,60 @@ include_in_access_token_response(model):
 | `INCLUDE_IN_ACCESS_TOKEN_RESPONSE` | `access.tokenResponse.claim` | false |
 | `INCLUDE_IN_LIGHTWEIGHT_ACCESS_TOKEN` | `lightweight.claim` | false |
 
+## Mappers that override the gate (role-injection class)
+
+The toggle gate above is inherited **only** by mappers that leave
+`AbstractOIDCProtocolMapper`'s `transform<Surface>` methods alone and just
+override `setClaim`. A handful of built-in mappers instead **override
+`transformAccessToken` / `transformUserInfoToken` /
+`transformIntrospectionToken` directly and call `setClaim`
+unconditionally** — they never consult `OIDCAttributeMapperHelper`, so
+their `access.token.claim` / `id.token.claim` / `userinfo.token.claim` /
+`introspection.token.claim` config keys are **absent and irrelevant**.
+Applying the `fires_on_surface` pseudocode (below) to these mappers
+mispredicts them as skipped (their config has no `access.token.claim`
+key, so `== "true"` is false). Treat this class separately:
+
+| Mapper | Provider id | Surface interfaces it implements | Fires on |
+| --- | --- | --- | --- |
+| `HardcodedRole` | `oidc-hardcoded-role-mapper` | `OIDCAccessTokenMapper`, `UserInfoTokenMapper`, `TokenIntrospectionTokenMapper` (**not** `OIDCIDTokenMapper`) | access, userinfo, introspection — unconditionally; **never** the ID token |
+| `RoleNameMapper` | `oidc-role-name-mapper` | same three interfaces (not `OIDCIDTokenMapper`) | same — unconditionally; renames a resolved role in place |
+
+For this class the only gate is the **surface-interface filter** (the
+left column of the [five `transform<Surface>` table](#the-five-transformsurface-methods-on-tokenmanager)),
+not any `*.token.claim` value. `HardcodedRole` not implementing
+`OIDCIDTokenMapper` is the entire reason it has no direct effect on the ID
+token.
+
+**These mappers do not write a claim path.** `HardcodedRole.setClaim`
+calls `RoleResolveUtil.getResolvedRealmRoles(...,true).addRole(role)` (or
+`getResolvedClientRoles(...,client,true).addRole(role)`) — it appends the
+role to the **resolved-roles cache**, a side `AccessToken` stored as a
+session attribute keyed `RESOLVED_ROLES:<userSessionId>:<clientId>`,
+built from `clientSessionCtx.getRolesStream()`. The role reaches a real
+token only when a **consumer** mapper reads that cache:
+
+- `UserRealmRoleMappingMapper` (priority 40) → `realm_access.roles`
+- `UserClientRoleMappingMapper` (priority 40) → `resource_access.<client>.roles`
+- `AudienceResolveProtocolMapper` (priority 30) → adds the owning client to `aud`
+
+Each consumer is a normal gated mapper, so **the surface on which a
+hardcoded role appears is governed by the consumer's toggles, not by
+`HardcodedRole`**. A hardcoded realm role with `UserRealmRoleMappingMapper`
+at `id.token.claim=true` appears in the ID token; a hardcoded client role
+whose `UserClientRoleMappingMapper` has `id.token.claim` unset does not.
+The priority chain
+(`PRIORITY_HARDCODED_ROLE_MAPPER`=20 < `PRIORITY_AUDIENCE_RESOLVE_MAPPER`=30
+< `PRIORITY_ROLE_MAPPER`=40) guarantees the injection lands in the cache
+before every consumer reads it, so the routing is deterministic. The
+cache is keyed by session, not by surface, so a role injected during the
+access-token pass is still in the cache when the ID-token consumer runs —
+even though `HardcodedRole` itself never runs on the ID surface. And
+because the injection is appended *after* `getRolesStream()` resolved the
+user's real roles, it **bypasses `fullScopeAllowed` and the role
+allowlist**: the user need not hold the role. See SKILL.md invariant 14
+and fixture `adversarial-7`.
+
 ## Decision matrix per surface
 
 Given a mapper config `{a, l, i, u, idt, atr}` standing for the six toggle
@@ -180,6 +234,16 @@ mappers exercised by the captured fixtures):
 - `HardcodedClaim` — writes a configured constant to a configurable claim
   path. If configured against `aud`, it contributes there; otherwise it
   populates whatever path the operator chose.
+- `HardcodedRole` (`oidc-hardcoded-role-mapper`) — injects a configured
+  role into the resolved-roles cache unconditionally (no `*.token.claim`
+  gate; overrides the transform methods). Surfaces only via the consumer
+  role/audience mappers and their toggles; never runs on the ID token
+  (no `OIDCIDTokenMapper`); bypasses `fullScopeAllowed`. See the
+  [role-injection class](#mappers-that-override-the-gate-role-injection-class)
+  section above and SKILL.md invariant 14.
+- `RoleNameMapper` (`oidc-role-name-mapper`) — same override-the-gate
+  class; renames a resolved role to a new realm/client position in place
+  in the resolved-roles cache.
 - `SubMapper` — populates `sub` from the user id (`initToken` only writes
   `sub` for TRANSIENT sessions).
 - `SHA256PairwiseSubMapper` — concrete subclass of `AbstractPairwiseSubMapper`;
@@ -190,6 +254,14 @@ mappers exercised by the captured fixtures):
   pre-OIDC-1.0-final clients.
 
 ## Pseudocode for surface verification
+
+> **Applies only to gated mappers.** This predicate assumes the mapper
+> inherits `AbstractOIDCProtocolMapper`'s `transform<Surface>` gate. For
+> the [role-injection class](#mappers-that-override-the-gate-role-injection-class)
+> (`oidc-hardcoded-role-mapper`, `oidc-role-name-mapper`) it returns the
+> wrong answer — those fire on every surface whose *interface* they
+> implement, regardless of any `*.token.claim` value. Check the surface
+> interfaces, not this predicate, for them.
 
 ```
 fires_on_surface(mapper, surface, client, session):
