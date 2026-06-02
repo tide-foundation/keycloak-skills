@@ -24,13 +24,12 @@ Per-row attestations on relationship tables are deliberately **not used** — th
 
 ## Common envelope
 
-Every attestation, regardless of unit type, wraps a `payload` in this envelope, encoded as a CBOR map (RFC 8949). The envelope is the **only** carrier of `realm_id` — payloads never duplicate it. Shown below in CBOR diagnostic notation:
+Every attestation, regardless of unit type, wraps a `payload` in this envelope, encoded as a CBOR map (RFC 8949). Shown below in CBOR diagnostic notation:
 
 ```cbor
 {
   "unit_type": "<one of the 18 unit types>",
   "schema_version": 1,
-  "realm_id": "<UUID of the realm — envelope-only; bind every payload to its realm via this field>",
   "target_id": "<primary key of the parent entity for this attestation>",
   "payload": { /* unit-specific CBOR map; see each unit below */ }
 }
