@@ -24,29 +24,30 @@ Per-row attestations on relationship tables are deliberately **not used** — th
 
 ## Common envelope
 
-Every attestation, regardless of unit type, wraps a `payload` in this envelope:
+Every attestation, regardless of unit type, wraps a `payload` in this envelope, encoded as a CBOR map (RFC 8949). The envelope is the **only** carrier of `realm_id` — payloads never duplicate it. Shown below in CBOR diagnostic notation:
 
-```json
+```cbor
 {
   "unit_type": "<one of the 18 unit types>",
   "schema_version": 1,
-  "realm_id": "<UUID of the realm; identical to payload.realm_id>",
+  "realm_id": "<UUID of the realm — envelope-only; bind every payload to its realm via this field>",
   "target_id": "<primary key of the parent entity for this attestation>",
-  "payload": { /* unit-specific; see each unit below */ }
+  "payload": { /* unit-specific CBOR map; see each unit below */ }
 }
 ```
 
-The signed bytes are `JCS(envelope)` (RFC 8785 canonical JSON), hashed with SHA-256. Approver signatures (e.g. one or more Ed25519 sigs) are stored adjacent to the envelope. Main Keycloak tables grow one column — `current_attestation_id` — that points at the envelope's storage row; drafts live in the same store with `status='DRAFT'` and never touch the live row until promoted.
+The signed bytes are the deterministically encoded CBOR (RFC 8949 §4.2.1) of the envelope, hashed with SHA-256. Approver signatures (e.g. one or more Ed25519 sigs) are stored adjacent to the envelope. Main Keycloak tables grow one column — `current_attestation_id` — that points at the envelope's storage row; drafts live in the same store with `status='DRAFT'` and never touch the live row until promoted.
 
 ## Canonicalization rules (mandatory for stable hashes)
 
-- **JSON form:** RFC 8785 JCS — UTF-8, sorted object keys, no insignificant whitespace.
-- **All ID arrays sorted lexicographically ascending.**
-- **All attribute / config lists sorted by `name` ascending; multi-value entries sort their `values` array too.**
-- **Optional fields are explicit `null`, never omitted** — keeps the schema and the hash stable across versions.
-- **Booleans always explicit `true` / `false`** (never coerced from absent).
+- **CBOR form:** Deterministically Encoded CBOR per RFC 8949 §4.2.1 — definite-length encoding for arrays, maps, and strings; map keys sorted by their bytewise-lexicographic CBOR encoding; shortest-form integer encoding; no duplicate map keys; text strings (major type 3, UTF-8) for all string / UUID values shown below.
+- **All ID arrays sorted lexicographically ascending** (by the underlying UUID string value before CBOR encoding).
+- **All attribute / config lists sorted by `name` ascending.**
+- **Multi-valued `values` arrays are NOT sorted — preserve stored insertion order verbatim.** Keycloak's `getFirstAttribute()` returns the *stored-first* value (not the lex-first), and scalar subfield reads — e.g. `AddressMapper` resolving `address.country` from a multi-valued attribute — take `values[0]` in stored order. Sorting `values` would both (a) false-reject a faithful token whose stored-first value isn't lexically smallest, and (b) latently false-accept a forged token that reordered `values` so a different element lands first. Producers and verifiers MUST emit `values` in stored order. (The verifier in `AttestationUnit.cs → GetNameValuesList` already does this — see its Phase-12 [B-11] comment.)
+- **Optional fields are explicit CBOR `null` (major type 7, value 22), never omitted** — keeps the schema and the hash stable across versions.
+- **Booleans always explicit CBOR `true` / `false`** (major type 7, values 21 / 20; never coerced from absent).
 - **Long attribute values:** when a `USER_ATTRIBUTE` row spilled into `LONG_VALUE`, use the resolved string; do **not** include the hash columns. The signing service rehydrates the same way before comparing.
-- **Hash algorithm:** SHA-256 over the canonical bytes.
+- **Hash algorithm:** SHA-256 over the canonical CBOR bytes.
 
 The signing service re-runs this same canonicalization against the live DB before every issuance and compares hashes. Any drift = refuse to sign.
 
@@ -62,9 +63,8 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 **Payload schema:**
 
-```json
+```cbor
 {
-  "realm_id": "string",
   "name": "string",
   "access_token_lifespan_seconds": "integer",
   "access_token_lifespan_for_implicit_flow_seconds": "integer",
@@ -117,11 +117,10 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "client_id_uuid": "string",
   "client_id": "string",
-  "realm_id": "string",
   "protocol": "string",
   "full_scope_allowed": "boolean",
   "service_accounts_enabled": "boolean",
@@ -179,11 +178,10 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "client_scope_id": "string",
   "name": "string",
-  "realm_id": "string",
   "protocol": "string",
   "attributes": [
     { "name": "include.in.token.scope", "value": "string" }
@@ -216,10 +214,9 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "protocol_mapper_id": "string",
-  "realm_id": "string",
   "parent_type": "client | client_scope",
   "parent_id": "string",
   "protocol": "string",
@@ -256,11 +253,10 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "role_id": "string",
   "name": "string",
-  "realm_id": "string",
   "client_role": "boolean",
   "container_id": "string"
 }
@@ -291,11 +287,10 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "group_id": "string",
   "name": "string",
-  "realm_id": "string",
   "parent_group_id": "string | null",
   "type": "REALM | ORGANIZATION"
 }
@@ -329,11 +324,10 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "user_id": "string",
   "username": "string",
-  "realm_id": "string",
   "email": "string | null",
   "email_verified": "boolean",
   "first_name": "string | null",
@@ -386,10 +380,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "user_id": "string",
-  "realm_id": "string",
   "role_ids": ["string"]
 }
 ```
@@ -409,10 +402,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "user_id": "string",
-  "realm_id": "string",
   "group_ids": ["string"]
 }
 ```
@@ -432,10 +424,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "group_id": "string",
-  "realm_id": "string",
   "role_ids": ["string"]
 }
 ```
@@ -450,10 +441,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "composite_role_id": "string",
-  "realm_id": "string",
   "child_role_ids": ["string"]
 }
 ```
@@ -472,10 +462,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "client_id_uuid": "string",
-  "realm_id": "string",
   "assignments": [
     { "client_scope_id": "string", "default": "boolean" }
   ]
@@ -498,10 +487,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "client_id_uuid": "string",
-  "realm_id": "string",
   "protocol_mapper_ids": ["string"]
 }
 ```
@@ -516,10 +504,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "client_scope_id": "string",
-  "realm_id": "string",
   "protocol_mapper_ids": ["string"]
 }
 ```
@@ -534,11 +521,10 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "parent_type": "client | client_scope",
   "parent_id": "string",
-  "realm_id": "string",
   "role_ids": ["string"]
 }
 ```
@@ -558,9 +544,8 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
-  "realm_id": "string",
   "group_ids": ["string"]
 }
 ```
@@ -580,10 +565,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "org_id": "string",
-  "realm_id": "string",
   "alias": "string",
   "enabled": "boolean",
   "group_id": "string"
@@ -619,10 +603,9 @@ Every linkage set hashes the **complete** child-id collection for one parent. Ad
 
 **Payload schema:**
 
-```json
+```cbor
 {
   "org_id": "string",
-  "realm_id": "string",
   "domains": [
     { "name": "string", "verified": "boolean" }
   ]
