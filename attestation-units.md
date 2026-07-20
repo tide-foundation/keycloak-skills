@@ -10,6 +10,7 @@ A field appears in a unit's payload **only if** at least one of the following ho
 
 1. **Claim source** — the field's value (or a deterministic projection of it) becomes a claim value in some issued token. Example: `USER_ENTITY.email` → the `email` claim.
 2. **Claim-shape gate** — the field's state changes which claims appear or what values they take, even if the field itself never appears in the JSON. Example: `CLIENT.full_scope_allowed` flips the role intersection in `TokenManager.getAccess`, changing `realm_access` / `resource_access` / `aud`.
+3. **Grant-admission gate** — the field's state records an **admin authorization for a grant type that the signing verifier co-enforces**. A token minted via that grant must be refused when the attested state shows the admins never enabled it — even though the field never affects the claim map. Currently exactly one field qualifies: `CLIENT_ATTRIBUTES.standard.token.exchange.enabled` (unit 2). The general exclusion of authentication/validation-only fields otherwise stands; do not add fields under this arm without a verifier that actually consumes them.
 
 Fields that **only** gate authentication, validation, admin-UI display, or session lifecycle (without affecting any issued token's claim map) are deliberately excluded. Each unit below lists what's in *and* what was excluded, with one-line justifications, so an auditor can re-derive the boundary.
 
@@ -110,7 +111,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 
 ## 2. `client_config`
 
-**Trigger:** rename a client (changes `azp` / `aud`), flip `full_scope_allowed`, flip `service_accounts_enabled`, flip the lightweight-token attribute, change `web_origins`, change a per-client lifespan / `use_refresh_token` / `lower_case_in_token_response` attribute.
+**Trigger:** rename a client (changes `azp` / `aud`), flip `full_scope_allowed`, flip `service_accounts_enabled`, flip the lightweight-token attribute, change `web_origins`, change a per-client lifespan / `use_refresh_token` / `lower_case_in_token_response` attribute, enable/disable standard token exchange for the client.
 
 **Source tables:** `CLIENT`, `CLIENT_ATTRIBUTES` (filtered), `WEB_ORIGINS`.
 
@@ -142,7 +143,7 @@ The signing service re-runs this same canonicalization against the live DB befor
 | `web_origins` | Read by `AllowedWebOriginsProtocolMapper` and written verbatim into the `allowed-origins` claim. |
 | `attributes` (filtered list below) | All claim-affecting client attributes. |
 
-**Allow-list of token-affecting client attributes** (filter `CLIENT_ATTRIBUTES` to these only):
+**Allow-list of token- and grant-admission-affecting client attributes** (filter `CLIENT_ATTRIBUTES` to these only):
 
 | Attribute | Effect on token |
 |---|---|
@@ -151,13 +152,14 @@ The signing service re-runs this same canonicalization against the live DB befor
 | `access.token.lifespan` | Per-client override of `exp`. |
 | `use.lower.case.in.token.response` | Lowercases the `typ` claim (`formatTokenType`). |
 | `acr.loa.map` | JSON map (LoA → ACR string) consumed by `AcrProtocolMapper` via `AcrUtils.getAcrLoaMap(client)` when `Feature.STEP_UP_AUTHENTICATION` is on. Client-level override of the realm-level map (unit 1) and fallback below per-mapper config (unit 4); changes the literal value of the `acr` claim. |
+| `standard.token.exchange.enabled` | **Grant-admission gate (criterion 3), not claim-affecting.** Admin opt-in for Standard Token Exchange v2 (`OIDCConfigAttributes.STANDARD_TOKEN_EXCHANGE_ENABLED`, checked via `OIDCAdvancedConfigWrapper.isStandardTokenExchangeEnabled`, `StandardTokenExchangeProvider.java:94` at 26.5.5); the verifier refuses to sign an exchange-minted token for a client not carrying `"true"`. Emit only when the attribute is set (a `CLIENT_ATTRIBUTES` row exists); the verifier treats absence as exchange-disabled (KC default-off, fail-closed). Value is the literal stored string (`"true"`), no coercion. See `keycloak-token-fixture-build/references/token-exchange.md` (realm recipe item 1) for the verified mechanism. |
 
 **Excluded (intentionally):**
 
 | Field | Why excluded |
 |---|---|
 | `name`, `description` | Admin UI / consent screen text only. |
-| `enabled`, `bearer_only`, `public_client`, `consent_required`, `standard_flow_enabled`, `implicit_flow_enabled`, `direct_access_grants_enabled`, `frontchannel_logout`, `surrogate_auth_required`, `always_display_in_console` | Gate authentication / which grant types succeed; an issued OIDC token's claim map doesn't depend on them. The skill explicitly notes `consent_required` is "orthogonal to claim shape but can fail the request." |
+| `enabled`, `bearer_only`, `public_client`, `consent_required`, `standard_flow_enabled`, `implicit_flow_enabled`, `direct_access_grants_enabled`, `frontchannel_logout`, `surrogate_auth_required`, `always_display_in_console` | Gate authentication / which grant types succeed; an issued OIDC token's claim map doesn't depend on them. The skill explicitly notes `consent_required` is "orthogonal to claim shape but can fail the request." Exception: `standard.token.exchange.enabled` is allow-listed above under inclusion-criterion 3 (grant-admission attestation). `public_client` remains excluded even though exchange requires a confidential client: it is a `CLIENT` **column**, not an attribute (attesting it would change the payload schema and re-canonicalize every client envelope), and KC hard-rejects public-client exchange upstream regardless of the toggle. |
 | `root_url`, `base_url`, `management_url` | Not read by `initToken` or any built-in mapper. |
 | `redirect_uris` | Validated at the auth/redirect step; never reaches a claim. |
 | `not_before` | Validation policy. |
