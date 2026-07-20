@@ -1,0 +1,66 @@
+{
+  "outcome": "token_minted",
+  "aud_set": ["adv9-target-a"],
+  "resource_access_keys": ["adv9-target-a"],
+  "shapes_ruled_out_by_skill": [
+    {
+      "shape": "aud_set = {adv9-target-a, adv9-target-b, account}, resource_access_keys = {adv9-target-a, adv9-target-b, account} (no narrowing fires; trap row 1)",
+      "ruled_out_by": "SKILL.md invariant 8 (L136-141): when `Constants.REQUESTED_AUDIENCE_CLIENTS` is set on the session ctx '(token exchange / requested-audience refresh), `aud` and `resource_access` are pruned post-mapper (TokenManager.L802-807, L1406)'. references/post-mapper.md L40-47 lists token exchange as a firing case and says the transform fires for 'Any internal caller that sets Constants.REQUESTED_AUDIENCE_CLIENTS on the client session ctx' — request-2.json IS a `urn:ietf:params:oauth:grant-type:token-exchange` request carrying `audience=adv9-target-a`, and references/inputs-and-outputs.md L71 marks the attribute's source as 'request'. The absent `requested_token_type` resolves (RFC 8693 default, unmentioned as an exemption anywhere in the skill) to the access-token type — the exact surface `restrictRequestedAudience` operates on (post-mapper.md L10-12: fires inside `transformAccessToken`). No skill passage gives a no-narrowing path for a token-exchange request that carries an audience parameter."
+    },
+    {
+      "shape": "aud_set = {adv9-target-a}, resource_access_keys = {account, adv9-target-a, adv9-target-b} (aud intersected but resource_access untouched; trap row 2)",
+      "ruled_out_by": "references/post-mapper.md L24-37 pseudocode of `restrictRequestedAudience` (TokenManager.L1406-1414): after the `retainAll` intersect, `token.resourceAccess.keySet().removeIf(clientId -> clientId ∉ audienceToSet)`. The same single transform prunes both. SKILL.md invariant 8 states it explicitly: '`aud` AND `resource_access` are pruned post-mapper'. There is no code path in the skill where the intersect touches `aud` but leaves `resource_access`."
+    },
+    {
+      "shape": "aud_set = {adv9-target-a, account}, resource_access_keys = {adv9-target-a, account} (built-in `account` audience exempt from the intersect; trap row 3)",
+      "ruled_out_by": "references/post-mapper.md L27-34: `audienceToSet ← new HashSet<>(requested); audienceToSet.retainAll(Set.of(token.audience))` — a plain set intersection with the REQUESTED set, followed by `removeIf(clientId ∉ audienceToSet)`. `requested` here is {adv9-target-a} only. Neither the pseudocode nor the summary at L210-228 carries any carve-out for built-in/service clients; `account` is not in `requested`, so it cannot survive the retainAll, and its `resource_access` entry is removed by the removeIf."
+    },
+    {
+      "shape": "outcome = http_400_no_token (requested audience not available; trap row 4)",
+      "ruled_out_by": "SKILL.md L10-12 scopes grant-type validation out of the model, and nothing in the skill's in-scope construction path rejects this request: `adv9-target-a` is an enabled client in the realm (realm-config.json L694-737), the subject token's `aud` already contains `adv9-target-a` (subject-token.json L6-10), the user demonstrably holds `role-a` on it (subject-token.json L24-28, realm-config.json L91-100), and `adv9-client` has `standard.token.exchange.enabled=true` (realm-config.json L672). The intersect `requested ∩ token.aud` is non-empty, so even post-mapper.md's empty-intersection note (L30-32, zero-length aud) does not apply. A 400 would require rejecting an audience the subject actually reaches — no skill passage supports that."
+    },
+    {
+      "shape": "aud_set = {} and/or resource_access absent (roles-scope mappers excluded on the exchange leg by `restrictedScopes`)",
+      "ruled_out_by": "references/mapper-set-assembly.md L98-100 says token exchange's `restrictedScopes` 'can see a strictly smaller mapper set', but the restriction filters the requester's candidate scopes against the subject token's granted scopes (references/scope-resolution.md L54-57, inputs-and-outputs.md L72). Here the exchange leg's client IS the subject-token client (`adv9-client` exchanges its own leg-1 token) and both legs pass no `scope` parameter, so the candidate set (scope-resolution.md L14-19: default scopes + client) is identical to leg 1's granted set — the restriction is an identity filter. The subject token itself proves the `roles`-scope mappers (client roles, realm roles, audience resolve; realm-config.json L1495-1537) ran for exactly this client+user+null-scope-param combination on leg 1 (its `resource_access` has all three keys), so they run again on the exchange leg and populate pre-prune aud/resource_access = {adv9-target-a, adv9-target-b, account}. scope-resolution.md L121-128 confirms `roles` (include.in.token.scope=false) is applied even though it never appears in the `scope` claim string 'email profile'."
+    }
+  ],
+  "skill_passages_invoked": [
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "L136-141 (invariant 8: restrictRequestedAudience runs after the access-token mappers)",
+      "what_it_let_you_commit": "Both commitments: the token-exchange request with an audience parameter sets REQUESTED_AUDIENCE_CLIENTS, and the post-mapper transform prunes BOTH `aud` and `resource_access` — ruling out trap rows 1, 2, and 3 in one stroke."
+    },
+    {
+      "file": "references/post-mapper.md",
+      "lines_or_section": "L10-47 (restrictRequestedAudience pseudocode + when-fires list) and L210-228 (postProcess summary)",
+      "what_it_let_you_commit": "The exact prune semantics: `audienceToSet = requested ∩ token.aud` via retainAll, then `resource_access.keySet().removeIf(∉ audienceToSet)`. With requested = {adv9-target-a} and pre-prune aud = {adv9-target-a, adv9-target-b, account}: aud_set = {adv9-target-a}, resource_access_keys = {adv9-target-a}. No exemption for `account`."
+    },
+    {
+      "file": "references/post-mapper.md",
+      "lines_or_section": "L130-146 (How `aud` is built up before the restrict step)",
+      "what_it_let_you_commit": "Pre-prune `aud`: AudienceResolveProtocolMapper adds clientIds for every client role the user holds → {adv9-target-a (role-a), adv9-target-b (role-b), account (manage-account/view-profile via default-roles composite)}; and 'the post-loop intersect is stable: the same input set produces the same output regardless of mapper order'."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "L121-129 (invariant 6: fullScopeAllowed short-circuits role intersection)",
+      "what_it_let_you_commit": "adv9-client has fullScopeAllowed=true (realm-config.json L676), so the role mappers and audience-resolve see the user's full role set — the pre-prune resource_access carries all three keys, matching the subject token's leg-1 shape."
+    },
+    {
+      "file": "references/scope-resolution.md",
+      "lines_or_section": "L14-19 (candidate set = default scopes + client), L54-57 (restrictedScopes filter position), L121-128 (include.in.token.scope defaults; roles/basic/web-origins/acr excluded from scope claim yet applied)",
+      "what_it_let_you_commit": "That the `roles` scope (and hence the client-roles + audience-resolve mappers) is in the exchange leg's allowed set even though the subject token's `scope` claim is only 'email profile' — the scope claim under-reports the applied scopes by design."
+    },
+    {
+      "file": "references/inputs-and-outputs.md",
+      "lines_or_section": "L66-73 (sessionCtxAttrs table: REQUESTED_AUDIENCE_CLIENTS, restrictedScopes)",
+      "what_it_let_you_commit": "REQUESTED_AUDIENCE_CLIENTS is a request-sourced attribute that 'Triggers restrictRequestedAudience post-mapper' — anchoring that this request (token exchange + audience param) takes the pruning branch."
+    },
+    {
+      "file": "SKILL.md",
+      "lines_or_section": "L10-12 (out-of-scope: grant-type validation)",
+      "what_it_let_you_commit": "The 400-rejection question is outside the skill's model; with the audience reachable by the subject (subject aud + user role + enabled client + standard.token.exchange.enabled), nothing in the in-scope pipeline aborts, so outcome = token_minted."
+    }
+  ],
+  "reasoning": "Pipeline walk for request-2.json (grant_type=urn:ietf:params:oauth:grant-type:token-exchange, client adv9-client authenticating with its secret, subject_token = leg-1 access token, audience=adv9-target-a, NO scope param, NO requested_token_type):\n\n(0) Outcome. adv9-client has standard.token.exchange.enabled=true (realm-config.json L672); the requested audience adv9-target-a is an enabled realm client that the subject actually reaches (subject-token aud contains it, user holds role-a on it). Grant-type validation is out of the skill's scope (SKILL.md L10-12) and nothing in the in-scope construction path rejects; the absent requested_token_type resolves to the default access-token type for THIS request — every construction step below is on the access-token surface. Outcome: token_minted.\n\n(1) Scope resolution (references/scope-resolution.md L14-19, L51-68). No scope param → candidates = adv9-client's default scopes {web-origins, acr, profile, roles, basic, email} + the client itself. Token exchange adds the restrictedScopes filter (DCSC.L253-256; inputs-and-outputs.md L72), restricting to the subject token's granted scopes — but the subject token was minted to the SAME client with the SAME null scope param, so its granted set is the identical default-scope set and the filter passes everything through. The `roles` scope survives (its absence from the subject's `scope` claim 'email profile' is only the include.in.token.scope=false display rule, scope-resolution.md L121-128); proof it was granted on leg 1: the subject token carries realm_access/resource_access/aud, which only the roles-scope mappers produce.\n\n(2) Mapper set (references/mapper-set-assembly.md). Union over allowed scopes includes, from `roles`: client roles mapper (resource_access.${client_id}.roles), realm roles mapper, and audience-resolve (realm-config.json L1495-1537).\n\n(3) Mapper pipeline, access-token surface. fullScopeAllowed=true on adv9-client (SKILL.md invariant 6) → role mappers see the user's full deep role set: role-a (container adv9-target-a), role-b (container adv9-target-b), account roles via the default-roles-adv-9 composite. Pre-prune: resource_access keys = {adv9-target-a, adv9-target-b, account}; audience-resolve (post-mapper.md L136) adds the owning clients of those client roles → pre-prune aud = {adv9-target-a, adv9-target-b, account} (adv9-client itself excluded — it owns no roles and DCSC.L200 filters the client).\n\n(4) Post-mapper transform (SKILL.md invariant 8; post-mapper.md L10-47). The token-exchange request carries audience=adv9-target-a → Constants.REQUESTED_AUDIENCE_CLIENTS = {adv9-target-a} on the session ctx (inputs-and-outputs.md L71, source 'request'). restrictRequestedAudience: audienceToSet = {adv9-target-a} ∩ {adv9-target-a, adv9-target-b, account} = {adv9-target-a}; token.aud ← {adv9-target-a}; resource_access.removeIf(key ∉ {adv9-target-a}) drops adv9-target-b and account, keeping adv9-target-a (with role-a). No exemption exists for `account`.\n\nCommitments: aud_set = {adv9-target-a}; resource_access_keys = {adv9-target-a} (resource_access present, single key). Whether the single-member aud serializes as a string or one-element array is explicitly not scored (prediction-target.md L17-20); the in-memory member set is {adv9-target-a}.\n\nWhere the skill text was thin, resolved for THIS request rather than hedged: (a) post-mapper.md L42-43's firing condition 'with a requested_token_type that triggers audience narrowing' never enumerates which values trigger it nor the default when the parameter is absent — I resolved via the literal request: no requested_token_type → default access-token type, the only surface the transform exists on, and the when-fires list's catch-all (L46-47, any caller that sets the attribute) plus inputs-and-outputs.md L71 make the audience-carrying exchange request the setting caller. (b) The exact contents of `restrictedScopes` for standard token exchange are unspecified; resolved by the identity argument above (same client, same null scope param on both legs), independently corroborated by the roles-scope claims present in the subject token.",
+  "fixture_target_compliance_note": "Both required sets are committed concretely with named client IDs and no either/or across trap-menu rows: aud_set = [\"adv9-target-a\"], resource_access_keys = [\"adv9-target-a\"] (trap-menu row 5), outcome = token_minted. No hedge is mandated by the skill here — unlike adversarial-1's tie case, post-mapper.md L141-146 states the post-loop intersect is stable and order-independent, so the skill's non-determinism contract (invariant 10) does not apply to either committed set. requested_token_type's absence and the audience-narrowing trigger were resolved against the literal request-2.json per prediction-target.md's 'What does NOT count as a prediction' rules. Forbidden files (actual-token-2*.json, response-2-*.json, log-*.txt, setup.md, surprises.md, diff.md, fixture token-*.json captures, keycloak-token-fixture-build/) were not read."
+}

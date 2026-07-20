@@ -161,6 +161,44 @@ If the predictor commits correctly with citations, that's `pass`.
 Strongest signal: agent reports "skill text was sufficient" and the
 commitment lands exactly.
 
+## Chained-flow (token-exchange) addendum
+
+Two-leg fixtures (see [token-exchange.md](token-exchange.md)) keep this
+topology unchanged but amend the inputs:
+
+- **Ordering**: the builder mints leg 1 (subject token) *before*
+  `prediction-target.md` exists. The commitment point sits between the
+  legs; only the token under test (leg 2) is minted after commitment.
+- **The subject token is a MAY-read input, not contamination.** It is
+  embedded in `request-2.json` and published decoded as
+  `subject-token.json`. Add both to the predictor's MAY-read list. The
+  MUST-NOT-read list is unchanged — leg-1's decoded payload is never
+  named `actual-token-1.json`, so the `actual-token*` deny pattern
+  stays correct verbatim.
+- **Predictor prompt additions** (append to the MAY-read section of the
+  template below):
+
+```
+- `/home/sam/keycloak-skills/tests/token-construction/adversarial-N/subject-token.json`
+  — the decoded subject token from leg 1. This is an INPUT to the
+  exchange under test, like realm-config.json. Your prediction concerns
+  ONLY the exchanged token minted by request-2.json; treat every
+  subject-token claim as a given, not something to predict.
+```
+
+- **Extra deny-list entry**: for exchange fixtures, add
+  `skills/keycloak-token-fixture-build/` (this skill's own folder) to
+  the predictor's MUST-NOT-read list. `references/token-exchange.md`
+  carries builder-side analysis of the exchange seam — including
+  target-skill discrepancy notes — that would contaminate a predictor.
+  Single-leg fixtures never needed this line because this skill's
+  files contained no target-skill answers; the exchange reference
+  does.
+- **Scoring**: `diff.md` compares the prediction against
+  `actual-token-2.json` only. A prediction that merely restates
+  subject-token claims is out of scope for scoring (and a sign the
+  seam is wrong — see token-exchange.md anti-patterns).
+
 ## Re-running predictors after a SKILL.md edit
 
 Existing fixtures double as regression tests. After any edit to the

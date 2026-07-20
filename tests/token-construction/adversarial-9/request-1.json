@@ -1,0 +1,15 @@
+{
+  "method": "POST",
+  "url": "http://localhost:8080/realms/adv-9/protocol/openid-connect/token",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "form": {
+    "grant_type": "password",
+    "client_id": "adv9-client",
+    "client_secret": "adv9-secret-cafebabe",
+    "username": "adv9-user",
+    "password": "password"
+  },
+  "curl": "curl -X POST http://localhost:8080/realms/adv-9/protocol/openid-connect/token -H 'Content-Type: application/x-www-form-urlencoded' -d 'grant_type=password' -d 'client_id=adv9-client' -d 'client_secret=adv9-secret-cafebabe' -d 'username=adv9-user' -d 'password=password'"
+}

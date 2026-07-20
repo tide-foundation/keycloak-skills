@@ -1,0 +1,36 @@
+{
+  "exp": 1784517558,
+  "iat": 1784517258,
+  "jti": "onrtro:1d902e74-3daf-3934-6578-432e88108fbd",
+  "iss": "http://localhost:8080/realms/adv-10",
+  "aud": "account",
+  "sub": "ff43d141-cd9f-4dd5-a291-4d5b81d6345f",
+  "typ": "Bearer",
+  "azp": "adv10-client",
+  "sid": "YVkqwmUYtcoIsnZUIn7BlDF1",
+  "acr": "1",
+  "realm_access": {
+    "roles": [
+      "offline_access",
+      "default-roles-adv-10",
+      "uma_authorization"
+    ]
+  },
+  "resource_access": {
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "email adv10-scope profile",
+  "email_verified": true,
+  "name": "Adv Ten",
+  "adv10_marker": "present",
+  "preferred_username": "adv10-user",
+  "given_name": "Adv",
+  "family_name": "Ten",
+  "email": "adv10@example.test"
+}

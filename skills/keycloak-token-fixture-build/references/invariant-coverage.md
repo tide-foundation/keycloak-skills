@@ -8,14 +8,14 @@ or retiring an old one.
 
 | # | Invariant (paraphrase) | Probed by | Status |
 | --- | --- | --- | --- |
-| 1 | `sub` only set by initToken on transient sessions | — | gap |
+| 1 | `sub` only set by initToken on transient sessions | adversarial-10 (collateral) | partial — adv-10's `sub`-presence commitment required invoking SubMapper-in-`basic` on a persistent session; no dedicated transient-vs-persistent contrast fixture yet |
 | 2 | `scope` claim composition (allowed scopes, isIncludeInTokenScope, openid re-attach, default-true on missing attr, ClientModel filter) | adversarial-2 | covered (PASS) |
 | 3 | Lightweight access-token uses `lightweight.claim` toggle | — | gap |
 | 4 | Introspection fallback ignores lightweight | — | gap |
 | 5 | Userinfo fallback uses `id.token.claim`, not `access.token.claim` | — | gap |
 | 6 | `fullScopeAllowed` short-circuits role intersection, not mapper dispatch | adversarial-2 (collateral) | partial — explicitly invoked by predictor; no dedicated fixture |
 | 7 | ID-token base claims sourced from transformed access token | adversarial-4 (collateral) | partial — adv-4 confirmed shape parity across access+ID for the organisation-membership mapper |
-| 8 | `restrictRequestedAudience` runs after access-token mappers | — | gap |
+| 8 | `restrictRequestedAudience` runs after access-token mappers | adversarial-9 | covered (PASS) — first two-leg (token-exchange) fixture; fresh predictor committed exactly to the intersect + `resource_access` prune. Note in diff.md: the post-mapper.md L42-43 trigger wording (`requested_token_type` vs the actual `audience` param) was flagged ambiguous by the predictor but recovered via the L46-47 catch-all; a clarity edit remains optional, not verdict-mandated. |
 | 9 | `at_hash`/`c_hash`/`s_hash` out of model | — | not worth a fixture (out of skill scope) |
 | 10 | Mapper sort ties are not deterministic | adversarial-1, adversarial-6 (extension) | covered (FAIL-BY-DESIGN, by design). Adv-6's wildcard order finding extended invariant 10's wording in SKILL.md to cover intra-mapper Set iteration over user-state collections. |
 | 11 | NON_NULL drops null claims | adversarial-1 (collateral), adversarial-2 (collateral), adversarial-4 (nonmember case, dedicated), adversarial-5 (multi-member static case, dedicated) | covered — adv-4 + adv-5 both produce intentional NON_NULL drops on the `organization` claim |
@@ -54,8 +54,20 @@ the gaps:
    `client.use.lightweight.access.token.enabled=true`; mapper with
    `access.token.claim=true`, `lightweight.claim=false`; predict claim
    absence.
-5. **Invariant 8 (restrictRequestedAudience)** — hard. Token exchange
-   flow. Defer until easier ones land.
+5. ~~Invariant 8 (restrictRequestedAudience)~~ — **done**:
+   adversarial-9 (PASS). The two-leg recipe that built it is in
+   `references/token-exchange.md`.
+
+Un-numbered contract covered by **adversarial-10** (PASS with
+source-escape): `restrictedScopes` provenance on the standard
+token-exchange path. The fixture refuted the seam's own premise —
+on stock 26.5.5 the exchange `scope` param does NOT populate
+`restrictedScopes` (only the `DownscopeAssertionGrantEnforcerExecutor`
+client policy does), so the exchange scope param is add-only and the
+mapper set never shrinks on a stock realm. Both the adv-9 and adv-10
+predictors flagged the target skill's `mapper-set-assembly.md` L98-100
+/ `inputs-and-outputs.md` L72 as misleading here; the candidate edit
+batch is recorded in `adversarial-10/diff.md`.
 6. **Invariant 4 (introspection fallback ignores lightweight)** — hard.
    Combination of lightweight mode + introspection endpoint flow.
    Defer.

@@ -1,6 +1,6 @@
 ---
 name: keycloak-token-fixture-build
-description: Methodology and templates for building adversarial test fixtures for the `keycloak-token-construction` skill, plus the two-phase fresh-context predictor harness. Use when adding a new `tests/token-construction/adversarial-N/` fixture, validating a SKILL.md or references/ edit hasn't regressed an existing fixture, designing a seam to probe a specific invariant, deciding the verdict of a prediction-vs-actual diff, or coordinating the builder-then-fresh-predictor agent split. Engage proactively whenever a SKILL.md change is being considered or after one is made, since untested edits can silently regress invariants.
+description: Methodology and templates for building adversarial test fixtures for the `keycloak-token-construction` skill, plus the two-phase fresh-context predictor harness. Covers single-leg grant fixtures and chained two-leg standard token-exchange fixtures (subject-token leg then exchange leg, `urn:ietf:params:oauth:grant-type:token-exchange`). Use when adding a new `tests/token-construction/adversarial-N/` fixture, validating a SKILL.md or references/ edit hasn't regressed an existing fixture, designing a seam to probe a specific invariant, deciding the verdict of a prediction-vs-actual diff, or coordinating the builder-then-fresh-predictor agent split. Engage proactively whenever a SKILL.md change is being considered or after one is made, since untested edits can silently regress invariants.
 ---
 
 # Building adversarial fixtures for `keycloak-token-construction`
@@ -75,6 +75,13 @@ skill directly.
    contract limit the skill correctly hedges.
 ```
 
+**Token-exchange fixtures are two-leg** (mint a subject token, then
+exchange it) and amend the ordering of steps 3–4: the commitment point
+moves *between* the legs. Read
+[references/token-exchange.md](references/token-exchange.md) before
+starting one — it also carries the verified 26.5.5 exchange recipe and
+the capture tooling (`scripts/capture-exchange.sh`).
+
 ## Critical invariants this harness must enforce
 
 The fixture's value depends on these. A fixture that violates any of them
@@ -133,12 +140,24 @@ should be rebuilt before scoring.
    was incomplete). Only `fail-skill-gap` warrants a SKILL.md edit. See
    `references/verdict-rubric.md` for examples.
 
+9. **Chained (token-exchange) fixtures move the commitment point
+   between the legs — never after the token under test.**
+   `request-2.json` must embed the literal leg-1 JWT, so leg 1 is
+   minted *before* `prediction-target.md` is written; leg 2 (the token
+   under test) is minted only *after*. The subject token is a public
+   input artifact (published decoded as `subject-token.json`, never
+   named `actual-token-1.json`), prediction targets may concern the
+   exchanged token only, and both determinism mints of leg 2 must
+   reuse the same subject token. Full rules:
+   `references/token-exchange.md`.
+
 ## Routing — go to the right reference
 
 - **"How do I pick a seam for invariant N?"** → [references/seam-design.md](references/seam-design.md)
 - **"How do I spawn the predictor without contaminating it?"** → [references/harness.md](references/harness.md)
 - **"What does this verdict mean? Should I edit SKILL.md?"** → [references/verdict-rubric.md](references/verdict-rubric.md)
 - **"Which invariants have fixtures already?"** → [references/invariant-coverage.md](references/invariant-coverage.md)
+- **"How do I build a token-exchange (two-leg) fixture?"** → [references/token-exchange.md](references/token-exchange.md)
 
 ## File layout per fixture
 
@@ -162,6 +181,15 @@ tests/token-construction/adversarial-N/
 ├── diff.md                    # written by parent, scoring prediction vs actual
 └── surprises.md               # anything that diverged from pre-mint expectations
 ```
+
+Token-exchange fixtures add one public artifact and use numbered-leg
+names: `request-1.json` (subject mint), `subject-token.json` (decoded
+leg-1 payload — **public**, it is an input to the exchange),
+`request-2.json` (the exchange request, embeds the literal
+`subject_token` JWT), and scoring artifacts `actual-token-2.json` /
+`log-*.txt`. The `actual-token*` deny-list is unchanged — the decoded
+subject token is deliberately *not* named `actual-token-1.json`. See
+[references/token-exchange.md](references/token-exchange.md).
 
 Use the templates in `assets/` for `setup.md`, `prediction-target.md`,
 `diff.md`, `surprises.md`. The `prediction.json` shape is the
@@ -187,3 +215,9 @@ reference in the prompt, but do not pre-fill it.
   `lastName`, and `email` populated even when `requiredActions=[]` —
   `verify-profile` authenticator demands them at runtime. See
   `tests/token-construction/adversarial-1/surprises.md` for the failure mode.
+- Standard token exchange works on the stock 26.5.5 stack with no
+  compose change — enable it per client via the attribute
+  `standard.token.exchange.enabled: "true"`. Legacy V1 exchange is NOT
+  available (needs the preview `token-exchange` feature flag). Capture
+  tooling: `scripts/capture-exchange.sh` (subcommands `subject` /
+  `exchange <label>`; see `references/token-exchange.md`).

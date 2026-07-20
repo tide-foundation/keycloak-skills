@@ -1,0 +1,49 @@
+{
+  "exp": 1784516275,
+  "iat": 1784515975,
+  "jti": "onrtro:c38c14bc-f17d-d5f0-0948-1324d7ca6542",
+  "iss": "http://localhost:8080/realms/adv-9",
+  "aud": [
+    "adv9-target-a",
+    "adv9-target-b",
+    "account"
+  ],
+  "sub": "f9c0fd6f-e13e-49ba-a60c-1278073249ca",
+  "typ": "Bearer",
+  "azp": "adv9-client",
+  "sid": "kMdCV-wvlOh9TFD2r4pySXDQ",
+  "acr": "1",
+  "realm_access": {
+    "roles": [
+      "default-roles-adv-9",
+      "offline_access",
+      "uma_authorization"
+    ]
+  },
+  "resource_access": {
+    "adv9-target-a": {
+      "roles": [
+        "role-a"
+      ]
+    },
+    "adv9-target-b": {
+      "roles": [
+        "role-b"
+      ]
+    },
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "email profile",
+  "email_verified": true,
+  "name": "Adv Nine",
+  "preferred_username": "adv9-user",
+  "given_name": "Adv",
+  "family_name": "Nine",
+  "email": "adv9@example.test"
+}

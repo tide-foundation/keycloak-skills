@@ -19,15 +19,18 @@ is candidate for a fixture. Some are easier to probe than others:
 | 5. Userinfo fallback uses `id.token.claim` | Easy | One mapper with `userinfo.token.claim` unset, `id.token.claim=true`, `access.token.claim=false`; userinfo response has the claim |
 | 6. `fullScopeAllowed` short-circuits role intersection | Easy | Two clients identical except for the flag; covered partially by the existing `test-client` / `test-client-restricted` pair |
 | 7. ID-token base claims sourced from transformed access token | Medium | A mapper that mutates the access token and check the ID token inherits |
-| 8. `restrictRequestedAudience` post-mapper | Hard | Token exchange or requested-audience refresh flow |
+| 8. `restrictRequestedAudience` post-mapper | Medium | Standard token exchange with the `audience` param — full recipe, seam sketch, and trap menu in [token-exchange.md](token-exchange.md); two-leg capture via `scripts/capture-exchange.sh` |
 | 9. `at_hash`/`c_hash`/`s_hash` out of model | Trivial | Out of skill scope — not worth a fixture |
 | 10. Mapper sort tie non-determinism | **Easy** | Two mappers, same priority, same claim; covered by adversarial-1 |
 | 11. NON_NULL drops null claims | **Easy** | A mapper with a missing source value; covered indirectly by every fixture |
 | 12. Transient `sid` nulling | **Easy** | Single client, two grants (cc vs password); covered by adversarial-3 |
 
-Already covered: 2, 6 (partial), 10, 11 (indirect), 12.
+Already covered: 1 (partial, adversarial-10 collateral), 2, 6
+(partial), 8 (adversarial-9, two-leg exchange), 10, 11 (indirect), 12.
 
-Open coverage gaps as of this writing: 1, 3, 4, 5, 7, 8.
+Open coverage gaps as of this writing: 3, 4, 5, 7, plus a dedicated
+invariant-1 transient-vs-persistent contrast (adv-10 only exercised
+the persistent half).
 
 ## Step 2 — Identify the trap
 
